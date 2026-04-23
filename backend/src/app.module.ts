@@ -4,15 +4,17 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
+import seedConfig from './config/seed.config';
 import { PlatformModule } from './platform/platform.module';
 import { TenantContextModule } from './tenant/tenant.module';
 import { TenantAppModule } from './tenant-module/tenant-app.module';
+import { DatabaseInitModule } from './database/database-init.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, jwtConfig],
+      load: [appConfig, databaseConfig, jwtConfig, seedConfig],
       envFilePath: ['.env.local', '.env'],
     }),
     TypeOrmModule.forRootAsync({
@@ -25,11 +27,14 @@ import { TenantAppModule } from './tenant-module/tenant-app.module';
         database: config.get<string>('database.name'),
         entities: [__dirname + '/platform/**/*.entity{.ts,.js}'],
         migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
-        synchronize: config.get('app.env') === 'development',
+        // synchronize: false — dùng migration thay vì auto-sync
+        synchronize: false,
+        migrationsRun: false, // DatabaseInitService sẽ gọi thủ công để có thể log rõ ràng
         logging: config.get('app.env') === 'development',
       }),
       inject: [ConfigService],
     }),
+    DatabaseInitModule,
     TenantContextModule,
     PlatformModule,
     TenantAppModule,
