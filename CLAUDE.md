@@ -1,54 +1,40 @@
-# System Context for Claude Code
+# CLAUDE.md
 
-This project is a **Multi-Tenant Sales Management Platform** implementing a strict **Database-per-Tenant** architecture.
+Multi-tenant SaaS sales platform. Database-per-tenant isolation. Backend: NestJS 10 + TypeORM + MySQL. Frontend: React 18 + Vite + Ant Design 5.
 
-## 🛠 Tech Stack
-- **Backend**: NestJS 10.x, TypeORM, MySQL, TypeScript.
-- **Frontend**: React 18, Vite, Ant Design, Zustand, React Router v6.
-- **Note**: The `readme.md` in the root may incorrectly reference Java/Spring Boot due to boilerplate. The actual implementation is purely **TypeScript (NestJS + React)**.
+## Commands
+- Backend: `cd backend && npm run start:dev` (port 8080). Migrations: `npm run migration:generate -- --name=X`, `npm run migration:run`
+- Frontend: `cd frontend && npm run dev` (port 5173, proxy /api → 8080)
 
-## 🏗 Architecture Rules & Concepts
-- **Isolation Strategy**: Physical Database-per-tenant.
-- **System DB**: Handled by the `platform` module. Manages metadata (tenants, platform_users).
-- **Tenant DBs**: Dynamically resolved via `TenantDataSourceManager` in the `tenant` module. All tenant-specific business logic must reside in `tenant-module`.
-- **Cross-Boundary Restrictions**: Code in `tenant-module` should **not** directly import or query entities from the `platform` module, and vice versa. Always respect the separation of concerns.
-- **Response Format**: Handled globally by `TransformInterceptor` (Format: `{ success: boolean, data: any, timestamp: string }`).
-- **Error Handling**: Handled globally by `HttpExceptionFilter`.
-- **Authentication**: JWT-based. Separated into Platform Tokens (`userType: 'PLATFORM'`) and Tenant Tokens (`userType: 'TENANT'`). Handled via `JwtAuthGuard` and `RolesGuard`.
+## Architecture — 3 Layers (KHÔNG import chéo)
+- `backend/src/platform/` → System DB (`salesplatform_system`): tenant CRUD, platform users, auth
+- `backend/src/tenant/` → Infrastructure: `TenantContextService` (AsyncLocalStorage), `TenantDataSourceManager` (dynamic connection pool)
+- `backend/src/tenant-module/` → Per-tenant DB (`tenant_<code>`): products, orders, customers...
 
-## 💻 Common Commands
+## Tenant-Module Service Pattern (BẮT BUỘC)
+Không dùng `@InjectRepository`. Lấy repo qua DataSourceManager:
+```typescript
+private async getRepo() {
+  const ds = await this.dsManager.getDataSource(this.tenantCtx.getTenantCode()!);
+  return ds.getRepository(XxxEntity);
+}
+```
 
-### Backend (`/backend`)
-- **Install Dependencies**: `npm install`
-- **Run Development**: `npm run start:dev`
-- **Build**: `npm run build`
-- **Migrations (Generate)**: `npm run migration:generate`
-- **Migrations (Run)**: `npm run migration:run`
+## Key Conventions
+- All entities extend `BaseEntity` (uuid id, createdAt, updatedAt, deletedAt soft-delete)
+- `synchronize: false` — luôn dùng migrations, không auto-sync
+- Response: `TransformInterceptor` wrap `{ success, data, timestamp }`. Error: `HttpExceptionFilter` wrap `{ success:false, message, path }`
+- Auth: `@Public()` bypass JWT. `@Roles('SUPER_ADMIN')` restrict access. `@CurrentUser()` get JWT payload
+- JWT: Platform token (`userType:'PLATFORM'`), Tenant token (`userType:'TENANT'`, có `tenantCode`)
+- Frontend aliases: `@api/`, `@auth/`, `@platform/`, `@tenant/`, `@shared/`. Backend aliases: `@common/`, `@config/`, `@platform/`, `@tenant/`
+- Frontend auth: `useAuth()` hook, 2 token riêng biệt `platform_token` / `tenant_token` trong localStorage
+- Frontend data fetching: `useApi(apiFn)` cho mutations, `usePagination(apiFn)` cho lists + `<DataTable>`
 
-### Frontend (`/frontend`)
-- **Install Dependencies**: `npm install`
-- **Run Development**: `npm run dev`
-- **Build**: `npm run build`
+## Docs
+- `docs/feature-list.md` — 162 tasks (96 BE + 66 FE), 12 modules
+- `docs/requirements/srs-tenant-detail.md` — SRS chi tiết nghiệp vụ
+- `docs/structure-coding-convension/` — Thiết kế chi tiết backend + frontend
 
-## 📝 Code Style & Guidelines
-- **NestJS**: Follow standard NestJS modular architecture. Use `@nestjs/swagger` for API documentation. Validate all inputs using `class-validator` DTOs.
-- **TypeORM**: Use the Data Mapper pattern (Repositories). `synchronize` is set to `false`, so schema changes must be managed via explicit migrations.
-- **React**: Use functional components and Hooks. Ant Design is the primary UI library.
-- **TypeScript**: Enforce strict typing. Avoid using `any`.
-- **Environment Configuration**: 
-  - Backend uses `ConfigModule` loading `.env.local` or `.env`.
-  - Frontend expects `.env.local` with `VITE_` prefixed variables (e.g., `VITE_API_BASE_URL`).
-
-## 📁 Key Directories
-
-### Backend
-- `backend/src/platform/`: System-level APIs (Super Admin auth, tenant provisioning, platform users).
-- `backend/src/tenant-module/`: Tenant-level APIs (products, orders, tenant-specific logic).
-- `backend/src/tenant/`: Core multi-tenancy context and dynamic database connection pooling (`TenantDataSourceManager`).
-- `backend/src/database/`: TypeORM data source, database initialization, and migrations.
-- `backend/src/common/`: Global interceptors, filters, decorators, and guards.
-
-### Frontend
-- `frontend/src/platform/`: UI components and pages for System/Platform Administrators.
-- `frontend/src/tenant/`: UI components and pages for Tenant Users (store managers, staff).
-- `frontend/src/api/`: Axios interceptors, token injection, and API endpoint definitions.
+## Status
+Đã implement: platform auth/CRUD, product CRUD, migration system, seed, frontend skeleton (17 pages).
+Chưa implement: tenant provisioning flow, resolveTenantDbConfig(), tenant auth query, categories/customers/suppliers/inventory/orders/payments/dashboard/audit-log.
