@@ -3,9 +3,17 @@ import { PLATFORM_TOKEN_KEY, TENANT_TOKEN_KEY } from '@api/axios';
 
 const AuthContext = createContext(null);
 
+function decodeBase64Url(value) {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padding = (4 - (normalized.length % 4)) % 4;
+  return atob(`${normalized}${'='.repeat(padding)}`);
+}
+
 function parseJwt(token) {
   try {
-    return JSON.parse(atob(token.split('.')[1]));
+    const payload = token?.split('.')?.[1];
+    if (!payload) return null;
+    return JSON.parse(decodeBase64Url(payload));
   } catch {
     return null;
   }
@@ -37,18 +45,23 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const pt = localStorage.getItem(PLATFORM_TOKEN_KEY);
     const tt = localStorage.getItem(TENANT_TOKEN_KEY);
-    if (pt) dispatch({ type: 'PLATFORM_LOGIN', payload: parseJwt(pt) });
-    if (tt) dispatch({ type: 'TENANT_LOGIN', payload: parseJwt(tt) });
+    const platformUser = pt ? parseJwt(pt) : null;
+    const tenantUser = tt ? parseJwt(tt) : null;
+
+    if (platformUser) dispatch({ type: 'PLATFORM_LOGIN', payload: platformUser });
+    if (tenantUser) dispatch({ type: 'TENANT_LOGIN', payload: tenantUser });
   }, []);
 
   const platformLogin = (token) => {
+    const user = parseJwt(token);
     localStorage.setItem(PLATFORM_TOKEN_KEY, token);
-    dispatch({ type: 'PLATFORM_LOGIN', payload: parseJwt(token) });
+    dispatch({ type: 'PLATFORM_LOGIN', payload: user });
   };
 
   const tenantLogin = (token) => {
+    const user = parseJwt(token);
     localStorage.setItem(TENANT_TOKEN_KEY, token);
-    dispatch({ type: 'TENANT_LOGIN', payload: parseJwt(token) });
+    dispatch({ type: 'TENANT_LOGIN', payload: user });
   };
 
   const platformLogout = () => {

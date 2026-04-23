@@ -1,14 +1,21 @@
 import { Form, Input, Button, Card, Typography, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@auth/AuthContext';
 import { platformAuth } from '@api/platform.api';
 
 export default function PlatformLoginPage() {
-  const { platformLogin } = useAuth();
+  const { platformLogin, platformUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [form] = Form.useForm();
+
+  useEffect(() => {
+    if (platformUser) {
+      navigate(location.state?.from?.pathname || '/platform/dashboard', { replace: true });
+    }
+  }, [location.state, navigate, platformUser]);
 
   const onFinish = async (values) => {
     try {

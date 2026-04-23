@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DataSource, DataSourceOptions } from 'typeorm';
+import { ensureMysqlDatabaseExists } from '../database/mysql-bootstrap.util';
 
 export interface TenantDbConfig {
   tenantCode: string;
@@ -27,6 +28,16 @@ export class TenantDataSourceManager {
 
   private async createAndCache(tenantCode: string): Promise<DataSource> {
     const dbConfig = await this.resolveTenantDbConfig(tenantCode);
+    if (this.config.get<boolean>('database.tenantAutoCreateDatabase', true)) {
+      await ensureMysqlDatabaseExists({
+        host: dbConfig.host,
+        port: dbConfig.port,
+        username: dbConfig.username,
+        password: dbConfig.password,
+        database: dbConfig.database,
+      });
+    }
+
     const options: DataSourceOptions = {
       type: 'mysql',
       host: dbConfig.host,
@@ -35,7 +46,9 @@ export class TenantDataSourceManager {
       password: dbConfig.password,
       database: dbConfig.database,
       entities: [__dirname + '/../tenant-module/**/*.entity{.ts,.js}'],
-      synchronize: false,
+      migrations: [__dirname + '/../database/migrations/tenant/*{.ts,.js}'],
+      synchronize: this.config.get<boolean>('database.tenantAutoSyncSchema', true),
+      migrationsRun: this.config.get<boolean>('database.tenantAutoRunMigrations', true),
     };
 
     const ds = new DataSource(options);
