@@ -4,12 +4,29 @@
 
 ---
 
+## Architecture Notes
+
+- Tenant pages: `src/tenant/pages/`
+- Imports: `@shared/components/PageHeader`, `@shared/components/DataTable`, `@shared/hooks/useApi`, `@api/tenant.api`
+- API: `paymentsApi` from `@api/tenant.api`:
+  ```javascript
+  paymentsApi.list(params)  // GET /tenant/invoices
+  paymentsApi.record(data)  // POST /tenant/payments
+  ```
+- Hook pattern:
+  ```jsx
+  const { fetch, loading, data, pagination, onTableChange } = usePagination(paymentsApi.list);
+  const { execute: recordPayment } = useApi(paymentsApi.record, { successMessage: 'Payment recorded', onSuccess: () => fetch() });
+  ```
+
+---
+
 ## 8.1 Invoice View Screen
 
 ### Task: #92
 
-**Route:** `/invoices/:id`  
-**Access:** All roles (STAFF chỉ xem invoice của đơn mình tạo)
+**Route:** `/tenant/invoices/:id`
+**Access:** All authenticated tenant users
 
 ### Layout
 ```
@@ -46,7 +63,7 @@ Lịch sử thanh toán:
 
 ### Print / Export
 - "In PDF": mở print dialog (hoặc `window.print()` với CSS print styles)
-- "Xuất PDF": `GET /invoices/:id/pdf` → download file
+- "Xuất PDF": `GET /tenant/invoices/:id/pdf` → download file
 
 ---
 
@@ -94,7 +111,7 @@ Ghi chú: [..................................]
 
 ### Task: #97
 
-**Route:** `/customers/:id` → Tab "Lịch sử thanh toán"
+**Route:** `/tenant/customers/:id` → Tab "Lịch sử thanh toán"
 
 ```
 [Filter: Từ ngày] [Đến ngày]
@@ -113,7 +130,7 @@ Summary: Tổng đã thu: 90,250₫ | Nợ hiện tại: 12,500,000₫
 
 ### Task: #100, #101
 
-**Route:** `/finance/ar`  
+**Route:** `/tenant/finance/ar`
 **Access:** `ACCOUNTANT`, `MANAGER`, `TENANT_ADMIN`
 
 ### Layout
@@ -154,7 +171,7 @@ Tổng phân bổ: 50,000₫ / 50,000₫ ← must match
 
 ### Task: #104
 
-**Route:** `/finance/ap`  
+**Route:** `/tenant/finance/ap`
 **Access:** `ACCOUNTANT`, `MANAGER`, `TENANT_ADMIN`
 
 ### Layout
@@ -180,7 +197,7 @@ Tổng phân bổ: 50,000₫ / 50,000₫ ← must match
 
 ### Task: #135, #136
 
-**Route:** `/finance/cash`  
+**Route:** `/tenant/finance/cash`
 **Access:** `ACCOUNTANT`, `MANAGER`, `TENANT_ADMIN`
 
 ### Layout

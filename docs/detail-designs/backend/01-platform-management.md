@@ -4,19 +4,84 @@
 
 ---
 
+## Architecture Notes
+
+- Platform module: `src/platform/` — manages SUPER_ADMIN + PLATFORM_OPERATOR users and tenants
+- Uses shared (platform) database with standard `@InjectRepository()` pattern
+- Route prefix: `platform/` for all endpoints in this module
+- Guard pattern: `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles(...)` on controllers
+- JWT payload for platform users: `{ sub, email, role, userType: 'PLATFORM' }`, 8h expiry, **no refresh token**
+
+---
+
+## 1.0 Platform Auth
+
+### `POST /platform/auth/login`
+
+**Auth:** None — decorated with `@Public()`
+
+**Request Body:**
+```json
+{ "email": "admin@platform.com", "password": "SuperSecret123" }
+```
+
+**DTO:**
+```typescript
+export class PlatformLoginDto {
+  @ApiProperty() @IsEmail() email: string;
+  @ApiProperty() @IsString() password: string;
+}
+```
+
+**Business Rules:**
+1. Query `platform_users` table (shared DB via `@InjectRepository(PlatformUser)`)
+2. `bcrypt.compare(password, user.passwordHash)`
+3. Check `user.status !== LOCKED`
+4. Sign JWT: `{ sub, email, role, userType: 'PLATFORM' }`, expiresIn: `8 * 60 * 60`
+
+**Response 200:**
+```json
+{ "accessToken": "eyJ...", "expiresIn": 28800 }
+```
+
+**Errors:**
+| Code | HTTP | Condition |
+|------|------|-----------|
+| `UnauthorizedException` | 401 | Credentials sai hoặc tài khoản bị lock |
+
+---
+
 ## 1.1 Tenant List
 
-### Task #1 — `GET /tenants`
+### `GET /platform/tenants`
 
-**Auth:** JWT · Roles: `SUPER_ADMIN`
+**Auth:** JWT · `@Roles('SUPER_ADMIN', 'PLATFORM_OPERATOR')`
 
-**Query Params:**
-| Param | Type | Description |
-|-------|------|-------------|
-| `status` | `PENDING\|ACTIVE\|SUSPENDED\|FAILED` | Filter theo trạng thái |
-| `search` | string | Match trên `name`, `slug`, `domain` |
-| `page` | number (default 1) | Phân trang |
-| `limit` | number (default 20, max 100) | Số items/trang |
+**Query Params:** `PaginationDto` — `page`, `limit`, `search`
+
+**Controller:**
+```typescript
+@Get()
+@Roles('SUPER_ADMIN', 'PLATFORM_OPERATOR')
+findAll(@Query() pagination: PaginationDto) {
+  return this.service.findAll(pagination);
+}
+```
+
+**Service:**
+```typescript
+// Platform module uses standard @InjectRepository (not multi-tenant DataSource)
+constructor(@InjectRepository(Tenant) private readonly repo: Repository<Tenant>) {}
+
+async findAll(pagination: PaginationDto) {
+  const [data, total] = await this.repo.findAndCount({
+    skip: pagination.skip,
+    take: pagination.limit,
+    order: { createdAt: 'DESC' },
+  });
+  return { data, total, page: pagination.page, limit: pagination.limit };
+}
+```
 
 **Response 200:**
 ```json
@@ -24,255 +89,252 @@
   "data": [
     {
       "id": "uuid",
-      "name": "Acme Corp",
-      "slug": "acme-corp",
-      "domain": "acme.app.com",
+      "tenantCode": "ACME_CORP",
+      "tenantName": "Acme",
+      "companyName": "Acme Corporation",
+      "contactEmail": "admin@acme.com",
+      "contactName": "John Doe",
       "status": "ACTIVE",
-      "adminEmail": "admin@acme.com",
-      "createdAt": "2026-01-01T00:00:00Z",
-      "updatedAt": "2026-01-10T00:00:00Z"
+      "provisioningStatus": "ACTIVE",
+      "createdAt": "2026-01-01T00:00:00Z"
     }
   ],
-  "meta": { "total": 50, "page": 1, "limit": 20, "totalPages": 3 }
+  "total": 50, "page": 1, "limit": 20
 }
 ```
-
-**DB:** `tenants`
 
 ---
 
 ## 1.2 Create Tenant + Provision
 
-### Task #2 — `POST /tenants`
+### `POST /platform/tenants`
 
-**Auth:** JWT · Roles: `SUPER_ADMIN`
+**Auth:** `@Roles('SUPER_ADMIN')`
 
-**Request Body:**
-```json
-{
-  "name": "Acme Corp",
-  "slug": "acme-corp",
-  "domain": "acme.app.com",
-  "adminEmail": "admin@acme.com",
-  "adminName": "John Doe",
-  "config": {
-    "maxUsers": 50,
-    "features": ["loyalty", "serial_tracking"]
-  }
+**DTO:**
+```typescript
+export class CreateTenantDto {
+  @ApiProperty() @IsString() @Length(2, 50) tenantCode: string;
+  @ApiProperty() @IsString() @Length(2, 100) tenantName: string;
+  @ApiProperty() @IsString() @Length(2, 150) companyName: string;
+  @ApiProperty() @IsString() contactName: string;
+  @ApiProperty() @IsEmail() contactEmail: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() contactPhone?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() address?: string;
+  @ApiPropertyOptional({ default: 'localhost' }) @IsString() @IsOptional() dbHost?: string;
+  @ApiPropertyOptional({ default: 3306 }) @IsInt() @Min(1) @Max(65535) @IsOptional() dbPort?: number;
+}
+```
+
+**Controller:**
+```typescript
+@Post()
+@Roles('SUPER_ADMIN')
+create(@Body() dto: CreateTenantDto, @CurrentUser() user: { id: string }) {
+  return this.service.create(dto, user.id);
+}
+```
+
+**Service:**
+```typescript
+async create(dto: CreateTenantDto, createdBy: string): Promise<Tenant> {
+  const exists = await this.repo.findOne({ where: { tenantCode: dto.tenantCode } });
+  if (exists) throw new ConflictException(`Tenant code '${dto.tenantCode}' already exists`);
+  const tenant = this.repo.create({ ...dto, createdBy });
+  return this.repo.save(tenant);
+  // TODO: Dispatch ProvisionTenantJob after save
 }
 ```
 
 **Business Rules:**
-1. `slug` duy nhất globally (lowercase, chỉ cho phép `a-z0-9-`)
-2. `domain` duy nhất globally (optional, nếu dùng subdomain routing)
-3. Tenant tạo ra với `status = PENDING`
-4. Sau khi lưu thành công, dispatch async job `ProvisionTenantJob`
+1. `tenantCode` unique globally (stored in platform DB `tenants` table)
+2. `contactEmail` unique globally
+3. Tenant saved with `status = INACTIVE`, `provisioningStatus = PENDING`
+4. After save, dispatch async `ProvisionTenantJob` (BullMQ — to be implemented)
 
-**Response 201:**
-```json
-{
-  "id": "uuid",
-  "name": "Acme Corp",
-  "slug": "acme-corp",
-  "status": "PENDING",
-  "message": "Tenant created. Provisioning started."
-}
-```
+**Response 201:** Full `Tenant` object
 
 **Errors:**
 | Code | HTTP | Condition |
 |------|------|-----------|
-| `TENANT_SLUG_EXISTS` | 409 | slug đã tồn tại |
-| `TENANT_DOMAIN_EXISTS` | 409 | domain đã tồn tại |
-| `VALIDATION_ERROR` | 422 | Thiếu/sai trường bắt buộc |
-
-**DB:** `tenants`, `tenant_configs`
+| `ConflictException` | 409 | `tenantCode` hoặc `contactEmail` đã tồn tại |
+| `ValidationError` | 422 | Thiếu/sai trường bắt buộc |
 
 ---
 
-### Task #3 — Async Job: `ProvisionTenantJob`
+## 1.3 Provisioning Job (Task #3, #4)
 
-**Trigger:** Sau khi `POST /tenants` thành công.
+**Status enums:**
 
-**Steps:**
-1. Tạo schema/database riêng cho tenant: `tenant_<slug>`
-2. Run migrations cho tenant schema (tạo đủ tables)
-3. Seed dữ liệu mặc định: roles hệ thống, cấu hình currency, đơn vị mặc định
-4. Gọi `CreateTenantAdminStep` (Task #4)
-5. Cập nhật `tenants.status = ACTIVE`
+```typescript
+export enum TenantStatus { ACTIVE = 'ACTIVE', INACTIVE = 'INACTIVE', SUSPENDED = 'SUSPENDED' }
+export enum ProvisioningStatus { PENDING = 'PENDING', PROVISIONING = 'PROVISIONING', ACTIVE = 'ACTIVE', FAILED = 'FAILED', SUSPENDED = 'SUSPENDED' }
+```
+
+**ProvisionTenantJob steps:**
+1. Cập nhật `provisioningStatus = PROVISIONING`
+2. Tạo schema/database riêng: `tenant_<tenantCode>` (lowercase sanitized)
+3. Run TypeORM migrations cho tenant schema
+4. Seed data: default roles, config
+5. Tạo `TENANT_ADMIN` user trong tenant schema (hash password, gửi email onboarding)
+6. Cập nhật `status = ACTIVE`, `provisioningStatus = ACTIVE`
 
 **On failure:**
-- Cập nhật `tenants.status = FAILED`
-- Ghi log lỗi chi tiết vào `provision_logs`
-- Gửi alert email cho SUPER_ADMIN
+- Cập nhật `provisioningStatus = FAILED`
+- Ghi log lỗi, gửi alert email cho SUPER_ADMIN
 
-**Idempotency:** Job phải idempotent — có thể retry an toàn khi bị lỗi giữa chừng.
-
----
-
-### Task #4 — Create Tenant Admin (step trong ProvisionTenantJob)
-
-**Actions:**
-1. Generate random password (16 ký tự, `[A-Za-z0-9!@#$%]`)
-2. Hash password với bcrypt (rounds = 12)
-3. Tạo user record trong tenant schema với role `TENANT_ADMIN`
-4. Gửi email onboarding kèm credentials (template `tenant_welcome`)
-5. Cập nhật `tenants.status = ACTIVE`
-
-**DB:** `users` (trong tenant schema)
+> Note: BullMQ (Redis) — to be implemented. Schema name: `tenant_${tenantCode.toLowerCase().replace(/[^a-z0-9_]/g, '_')}`
 
 ---
 
-## 1.3 Update Tenant
+## 1.4 Update Tenant
 
-### Task #8 — `PUT /tenants/:id`
+### `PUT /platform/tenants/:id`
 
-**Auth:** JWT · Roles: `SUPER_ADMIN`
+**Auth:** `@Roles('SUPER_ADMIN')`
 
-**Request Body:** (tất cả optional)
-```json
-{
-  "name": "New Corp Name",
-  "domain": "new-domain.app.com",
-  "config": {
-    "maxUsers": 100,
-    "features": ["loyalty", "batch_tracking", "serial_tracking"]
-  }
+**DTO:**
+```typescript
+export class UpdateTenantDto {
+  @ApiPropertyOptional() @IsString() @IsOptional() tenantName?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() companyName?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() contactName?: string;
+  @ApiPropertyOptional() @IsEmail() @IsOptional() contactEmail?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() contactPhone?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() address?: string;
 }
 ```
 
 **Business Rules:**
-1. Không cho phép thay đổi `slug` (immutable sau khi tạo)
-2. Nếu thay đổi `domain`: validate unique
-3. Chỉ cho phép update tenant có status `ACTIVE` hoặc `SUSPENDED`
+1. `tenantCode` immutable — không có trong UpdateTenantDto
+2. `contactEmail` unique if changed
 
-**Response 200:** Tenant object đầy đủ sau khi cập nhật
-
-**Errors:**
-| Code | HTTP | Condition |
-|------|------|-----------|
-| `TENANT_NOT_FOUND` | 404 | Không tìm thấy tenant |
-| `TENANT_DOMAIN_EXISTS` | 409 | Domain mới đã tồn tại |
-| `CANNOT_UPDATE_PROVISIONING` | 400 | Tenant đang ở status PENDING/FAILED |
-
-**DB:** `tenants`, `tenant_configs`
+**Response 200:** Updated `Tenant` object
 
 ---
 
-## 1.4 Suspend / Activate Tenant
+## 1.5 Update Tenant Status
 
-### Task #10 — `PATCH /tenants/:id/status`
+### `PATCH /platform/tenants/:id/status`
 
-**Auth:** JWT · Roles: `SUPER_ADMIN`
+**Auth:** `@Roles('SUPER_ADMIN')`
 
-**Request Body:**
-```json
-{
-  "status": "SUSPENDED",
-  "reason": "Payment overdue for 30 days"
+**DTO:**
+```typescript
+export class UpdateTenantStatusDto {
+  @ApiProperty({ enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED'] }) @IsString() status: string;
 }
 ```
 
-**Business Rules:**
-1. Transition hợp lệ: `ACTIVE → SUSPENDED`, `SUSPENDED → ACTIVE`
-2. Transition không hợp lệ: `PENDING → SUSPENDED`, `FAILED → ACTIVE`, v.v.
-3. Khi `SUSPENDED`: Invalidate toàn bộ active sessions (JWT + refresh tokens) của tenant
-4. Khi user của tenant suspended cố login: API trả 403 `TENANT_SUSPENDED`
-5. `reason` bắt buộc khi chuyển sang `SUSPENDED`
-
-**Response 200:**
-```json
-{
-  "id": "uuid",
-  "status": "SUSPENDED",
-  "suspendedAt": "2026-04-22T10:00:00Z",
-  "suspendedReason": "Payment overdue for 30 days"
+**Service:**
+```typescript
+async updateStatus(id: string, dto: UpdateTenantStatusDto): Promise<Tenant> {
+  const tenant = await this.findOne(id);
+  tenant.status = dto.status as TenantStatus;
+  return this.repo.save(tenant);
 }
 ```
 
-**Errors:**
-| Code | HTTP | Condition |
-|------|------|-----------|
-| `INVALID_STATUS_TRANSITION` | 400 | Transition không được phép |
-| `REASON_REQUIRED` | 422 | Thiếu reason khi suspend |
-| `TENANT_NOT_FOUND` | 404 | Không tìm thấy |
-
-**DB:** `tenants`, `refresh_tokens` (delete by tenant_id)
+**Response 200:** Updated `Tenant` object
 
 ---
 
-## 1.5 Reset Tenant Admin Password
+## 1.6 Platform Users
 
-### Task #12 — `POST /tenants/:id/reset-admin`
+### `GET /platform/users` · `POST /platform/users` · `PUT /platform/users/:id` · `PATCH /platform/users/:id/lock`
 
-**Auth:** JWT · Roles: `SUPER_ADMIN`
+**Auth:** `@UseGuards(JwtAuthGuard, RolesGuard)` · `@Roles('SUPER_ADMIN')` (class-level)
 
-**Request Body:** (không có — action thực hiện tự động)
+**Entity:**
+```typescript
+export enum PlatformRole { SUPER_ADMIN = 'SUPER_ADMIN', PLATFORM_OPERATOR = 'PLATFORM_OPERATOR' }
+export enum UserStatus { ACTIVE = 'ACTIVE', INACTIVE = 'INACTIVE', LOCKED = 'LOCKED' }
 
-**Actions:**
-1. Tìm user có role `TENANT_ADMIN` trong tenant
-2. Generate mật khẩu mới (16 ký tự)
-3. Hash và cập nhật `users.password_hash`
-4. Xoá tất cả refresh tokens của admin đó
-5. Gửi email với mật khẩu mới (template `password_reset_by_admin`)
-
-**Response 200:**
-```json
-{
-  "message": "Password reset. Email sent to admin@acme.com"
+@Entity('platform_users')
+export class PlatformUser extends BaseEntity {
+  @Column({ unique: true }) username: string;
+  @Column({ unique: true }) email: string;
+  @Column({ select: false }) @Exclude() passwordHash: string;
+  @Column({ type: 'enum', enum: PlatformRole }) role: PlatformRole;
+  @Column({ type: 'enum', enum: UserStatus, default: UserStatus.ACTIVE }) status: UserStatus;
+  @Column({ nullable: true }) lastLoginAt?: Date;
 }
 ```
 
-**Errors:**
-| Code | HTTP | Condition |
-|------|------|-----------|
-| `TENANT_NOT_FOUND` | 404 | Không tìm thấy tenant |
-| `ADMIN_NOT_FOUND` | 404 | Tenant chưa có admin (status PENDING/FAILED) |
+**CreatePlatformUserDto:**
+```typescript
+export class CreatePlatformUserDto {
+  @ApiProperty() @IsString() username: string;
+  @ApiProperty() @IsEmail() email: string;
+  @ApiProperty({ minLength: 10 }) @IsString() @MinLength(10) password: string;
+  @ApiProperty({ enum: PlatformRole }) @IsEnum(PlatformRole) role: PlatformRole;
+}
+```
 
-**DB:** `users`, `refresh_tokens`
+**toggleLock:** Toggles `status` between `ACTIVE` and `LOCKED` — no body needed.
 
 ---
 
 ## Database Schema
 
 ```sql
+-- Platform (shared) DB
 CREATE TABLE tenants (
-  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name             VARCHAR(255) NOT NULL,
-  slug             VARCHAR(100) NOT NULL UNIQUE,
-  domain           VARCHAR(255) UNIQUE,
-  status           VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-                   -- CHECK status IN ('PENDING','ACTIVE','SUSPENDED','FAILED')
-  admin_email      VARCHAR(255) NOT NULL,
-  suspended_reason TEXT,
-  suspended_at     TIMESTAMPTZ,
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id                   UUID PRIMARY KEY,
+  tenant_code          VARCHAR(50) NOT NULL UNIQUE,
+  tenant_name          VARCHAR(100) NOT NULL,
+  company_name         VARCHAR(150) NOT NULL,
+  contact_name         VARCHAR(100) NOT NULL,
+  contact_email        VARCHAR(150) NOT NULL UNIQUE,
+  contact_phone        VARCHAR(20),
+  address              TEXT,
+  status               ENUM('ACTIVE','INACTIVE','SUSPENDED') DEFAULT 'INACTIVE',
+  provisioning_status  ENUM('PENDING','PROVISIONING','ACTIVE','FAILED','SUSPENDED') DEFAULT 'PENDING',
+  db_host              VARCHAR(100),
+  db_port              INT,
+  db_name              VARCHAR(100),
+  db_username          VARCHAR(100),
+  db_password_encrypted VARCHAR(500),
+  created_by           UUID,
+  created_at           DATETIME,
+  updated_at           DATETIME,
+  deleted_at           DATETIME
 );
 
-CREATE TABLE tenant_configs (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id   UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-  key         VARCHAR(100) NOT NULL,
-  value       JSONB NOT NULL DEFAULT '{}',
-  UNIQUE (tenant_id, key)
-);
-
-CREATE TABLE provision_logs (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id   UUID NOT NULL REFERENCES tenants(id),
-  step        VARCHAR(100),
-  status      VARCHAR(20), -- 'SUCCESS' | 'FAILED'
-  error       TEXT,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+CREATE TABLE platform_users (
+  id            UUID PRIMARY KEY,
+  username      VARCHAR(50) NOT NULL UNIQUE,
+  email         VARCHAR(150) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  role          ENUM('SUPER_ADMIN','PLATFORM_OPERATOR') NOT NULL,
+  status        ENUM('ACTIVE','INACTIVE','LOCKED') DEFAULT 'ACTIVE',
+  last_login_at DATETIME,
+  created_at    DATETIME,
+  updated_at    DATETIME,
+  deleted_at    DATETIME
 );
 ```
 
 ---
 
+## Module Registration
+
+```typescript
+// src/platform/platform.module.ts
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([Tenant, PlatformUser]),
+    JwtModule.registerAsync(...),
+  ],
+  controllers: [PlatformAuthController, TenantsController, UsersController],
+  providers: [PlatformAuthService, TenantsService, UsersService],
+})
+export class PlatformModule {}
+```
+
 ## Notes
 
-- `slug` dùng làm database schema name: `tenant_<slug>` → cần sanitize trước khi dùng làm SQL identifier
-- Job queue: sử dụng BullMQ (Redis-backed) để đảm bảo provision chạy reliably với retry logic
-- Tenant schema isolation giúp dữ liệu của từng tenant hoàn toàn tách biệt về mặt DB
-- SUPER_ADMIN không thuộc tenant nào — stored trong platform (shared) database
+- `synchronize: false` — all schema changes require TypeORM migrations
+- Platform module uses standard `@InjectRepository()` (single shared DB, not multi-tenant)
+- `tenantCode` used as the tenant identifier in JWT and provisioning; DB schema named `tenant_${tenantCode.toLowerCase()}`
+- No refresh tokens in current implementation

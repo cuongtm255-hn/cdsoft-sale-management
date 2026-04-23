@@ -4,12 +4,27 @@
 
 ---
 
+## Architecture Notes
+
+- Tenant pages: `src/tenant/pages/`
+- Imports: `@shared/components/PageHeader`, `@shared/components/DataTable`, `@shared/hooks/useApi`, `@api/tenant.api`
+- API: `inventoryApi` from `@api/tenant.api`:
+  ```javascript
+  transactions: (params) => tenantApi.get('/tenant/inventory/transactions', { params }),
+  stockIn:  (data) => tenantApi.post('/tenant/inventory/stock-in', data),
+  stockOut: (data) => tenantApi.post('/tenant/inventory/stock-out', data),
+  adjust:   (data) => tenantApi.post('/tenant/inventory/adjust', data),
+  ```
+- Also: `purchaseOrdersApi` for purchase order-linked receipts
+
+---
+
 ## 6.1 Tạo Phiếu Nhập Kho
 
 ### Task: #53
 
-**Route:** `/inventory/receipts/new`  
-**Access:** `WAREHOUSE`, `MANAGER`, `TENANT_ADMIN`
+**Route:** `/tenant/inventory/receipts/new`
+**Access:** Authenticated tenant users
 
 ### Layout
 ```
@@ -64,7 +79,7 @@ Danh sách hàng nhập:
 
 ### Task: #54
 
-**Route:** `/inventory/receipts/:id`
+**Route:** `/tenant/inventory/receipts/:id`
 
 **Layout:**
 ```
@@ -82,7 +97,7 @@ Danh sách hàng nhập:
 
 ### Task: #57
 
-**Route:** `/inventory/issues/new`  
+**Route:** `/tenant/inventory/issues/new`
 **Access:** `WAREHOUSE`, `MANAGER`
 
 ### Layout tương tự Phiếu nhập nhưng:
@@ -98,7 +113,7 @@ Danh sách hàng nhập:
 
 ### Task: #59
 
-**Route:** `/inventory/adjustments/new`  
+**Route:** `/tenant/inventory/adjustments/new`
 **Access:** `WAREHOUSE`, `MANAGER`
 
 ### Layout
@@ -125,7 +140,7 @@ Lý do:  [Kiểm kê tháng 4 — phát hiện thiếu hàng...]  (required)
 
 ### Task: #62, #63
 
-**Route:** `/inventory/transfers/new`  
+**Route:** `/tenant/inventory/transfers/new`
 **Access:** `WAREHOUSE`, `MANAGER`
 
 ### Tạo Lệnh Điều Chuyển (Task #62)
@@ -141,7 +156,7 @@ Validation: Kho đi ≠ Kho đến
 
 ### Xác Nhận Nhận Hàng (Task #63)
 
-**Route:** `/inventory/transfers/:id/receive`  
+**Route:** `/tenant/inventory/transfers/:id/receive`
 **Access:** `WAREHOUSE` của kho đến
 
 ```
@@ -163,7 +178,7 @@ Nếu `SL thực nhận < SL điều chuyển`: tooltip "Chênh lệch [2] Thùn
 
 ### Task: #66
 
-**Route:** `/inventory`  
+**Route:** `/tenant/inventory`
 **Access:** All roles
 
 ```
@@ -187,7 +202,7 @@ Nếu `SL thực nhận < SL điều chuyển`: tooltip "Chênh lệch [2] Thùn
 
 ### Task: #69
 
-**Route:** `/inventory/stocktaking`  
+**Route:** `/tenant/inventory/stocktaking`
 **Access:** `WAREHOUSE`, `MANAGER`
 
 ### Bắt đầu Kiểm kê

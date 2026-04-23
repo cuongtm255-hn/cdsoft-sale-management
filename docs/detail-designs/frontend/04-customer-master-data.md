@@ -4,12 +4,25 @@
 
 ---
 
+## Architecture Notes
+
+- Tenant pages: `src/tenant/pages/`
+- Imports: `@shared/components/PageHeader`, `@shared/components/DataTable`, `@shared/hooks/useApi`, `@api/tenant.api`
+- API: `customersApi` from `@api/tenant.api` → `GET /tenant/customers`, `POST /tenant/customers`, `PUT /tenant/customers/:id`
+- Hook pattern:
+  ```jsx
+  const { fetch, loading, data, pagination, onTableChange } = usePagination(customersApi.list);
+  const { execute: createCustomer } = useApi(customersApi.create, { successMessage: 'Customer created', onSuccess: () => fetch() });
+  ```
+
+---
+
 ## 4.1 Customer List Screen
 
 ### Task: #39
 
-**Route:** `/customers`  
-**Access:** All roles
+**Route:** `/tenant/customers`
+**Access:** All authenticated tenant users
 
 ### Layout
 ```
@@ -64,7 +77,7 @@
 
 ### Flow
 1. Fill form → "Lưu"
-2. `POST /customers` hoặc `PUT /customers/:id`
+2. `customersApi.create(values)` hoặc `customersApi.update(id, values)`
 3. Success: redirect đến `/customers/:id` (detail)
 4. Lỗi 409: "Mã khách hàng đã tồn tại"
 
@@ -72,7 +85,7 @@
 
 ## 4.3 Customer Detail Screen
 
-**Route:** `/customers/:id`
+**Route:** `/tenant/customers/:id`
 
 ### Layout
 ```
@@ -111,7 +124,7 @@ Tabs: [Thông tin] [Lịch sử giao dịch] [Lịch sử thanh toán]
 - Click row → navigate đến trang chi tiết chứng từ tương ứng
 
 ### API Integration
-- `GET /customers/:id/transactions?type=&from=&to=&page=&limit=`
+- `GET /tenant/customers/:id/transactions?type=&from=&to=&page=&limit=`
 - Re-fetch khi filter thay đổi
 
 ---

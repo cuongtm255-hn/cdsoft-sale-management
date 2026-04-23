@@ -4,178 +4,265 @@
 
 ---
 
+## Architecture Notes
+
+- Platform pages: `src/platform/pages/`
+- Import aliases: `@shared/components/PageHeader`, `@shared/components/DataTable`, `@shared/hooks/useApi`, `@api/platform.api`
+- Hooks: `usePagination(apiFn)` → `{ fetch, loading, data, pagination, onTableChange }`, `useApi(apiFn, { successMessage, onSuccess })` → `{ execute, loading }`
+- API functions: `tenantsApi`, `platformUsersApi`, `auditLogsApi` from `@api/platform.api`
+- Auth: `useAuth()` from `@auth/AuthContext` — accesses `platformUser`
+- Navigation: React Router v6 `useNavigate()`
+
+### Component Pattern
+
+```jsx
+import { useEffect } from 'react';
+import PageHeader from '@shared/components/PageHeader';
+import DataTable from '@shared/components/DataTable';
+import { usePagination } from '@shared/hooks/useApi';
+import { tenantsApi } from '@api/platform.api';
+
+export default function TenantList() {
+  const { fetch, loading, data, pagination, onTableChange } = usePagination(tenantsApi.list);
+  useEffect(() => { fetch(); }, []);
+  // ...
+}
+```
+
+---
+
 ## 1.1 Tenant List Screen
 
 ### Tasks: #5, #6, #7
 
-**Route:** `/admin/tenants`  
-**Access:** SUPER_ADMIN only
+**Route:** `/platform/tenants`
+**Access:** SUPER_ADMIN, PLATFORM_OPERATOR
 
 ### Layout
 ```
-[Header: "Tenant Management"]
-[Search bar]  [Status filter dropdown]  [+ Create Tenant button]
+[Header: "Tenants"]                              [+ New Tenant]
 ─────────────────────────────────────────────────────
-| Name     | Slug       | Domain       | Status    | Actions |
-|----------|------------|--------------|-----------|---------|
-| Acme Corp| acme-corp  | acme.app.com | ● ACTIVE  | Edit    |
-| BizCo    | bizco      | —            | ⏳ PENDING| —      |
+| Code      | Name     | Company      | Status    | Provision  | Actions |
+|-----------|----------|--------------|-----------|------------|---------|
+| ACME_CORP | Acme     | Acme Corp    | ● ACTIVE  | ✅ ACTIVE  | View    |
+| BИЗCO     | BizCo    | BizCo Ltd    | ○ INACTIVE| ⏳ PENDING | View    |
 ─────────────────────────────────────────────────────
 [Pagination]
 ```
 
-### Components
-- **TenantTable:** Bảng danh sách với các cột: Name, Slug, Domain, Status, Created At, Actions
-- **StatusBadge:** Badge màu theo status: ACTIVE=green · PENDING=yellow · SUSPENDED=red · FAILED=gray
-- **SearchInput:** Debounce 300ms, gọi `GET /tenants?search=...`
-- **StatusFilterSelect:** Dropdown chọn filter status, value `ALL` + 4 statuses
-- **CreateTenantButton:** Mở `CreateTenantModal`
+### Columns
+- `tenantCode` — unique identifier
+- `tenantName` — display name
+- `companyName`
+- `status` — `<Tag color={statusColor[v]}>` where `statusColor = { ACTIVE:'green', INACTIVE:'default', SUSPENDED:'red' }`
+- `provisioningStatus` — `<Tag>` (PENDING, PROVISIONING, ACTIVE, FAILED)
+- Actions: View button → navigate to `/platform/tenants/:id`
 
-### States
-- **Loading:** Skeleton rows trong bảng
-- **Empty:** "No tenants found. Create your first tenant."
-- **Error:** Toast error + retry button
+### Implementation
 
-### API Integration
-- `GET /tenants?search=&status=&page=&limit=` → populate bảng
-- Re-fetch khi search/filter thay đổi (debounced)
+```jsx
+const statusColor = { ACTIVE: 'green', INACTIVE: 'default', SUSPENDED: 'red' };
+
+const columns = [
+  { title: 'Code', dataIndex: 'tenantCode', key: 'tenantCode' },
+  { title: 'Name', dataIndex: 'tenantName', key: 'tenantName' },
+  { title: 'Company', dataIndex: 'companyName', key: 'companyName' },
+  { title: 'Status', dataIndex: 'status', render: (v) => <Tag color={statusColor[v]}>{v}</Tag> },
+  { title: 'Provision', dataIndex: 'provisioningStatus', render: (v) => <Tag>{v}</Tag> },
+  { title: 'Actions', render: (_, row) => (
+    <Button icon={<EyeOutlined />} size="small" onClick={() => navigate(`/platform/tenants/${row.id}`)}>View</Button>
+  )},
+];
+```
 
 ---
 
-## 1.2 Create Tenant Modal
+## 1.2 Create Tenant Screen
 
 ### Task: #6, #7
 
-**Trigger:** Click "+ Create Tenant" button
+**Route:** `/platform/tenants/new`
 
 ### Form Fields
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| Tenant Name | Text | ✅ | Min 2, max 255 ký tự |
-| Slug | Text | ✅ | Pattern `[a-z0-9-]+`, min 3, max 100; auto-generate từ name |
-| Domain | Text | ❌ | Format domain hợp lệ nếu nhập |
-| Admin Email | Email | ✅ | Valid email format |
-| Admin Name | Text | ✅ | Min 2 ký tự |
-| Max Users | Number | ❌ | Min 1, default 50 |
-| Features | Multi-select | ❌ | Checkbox list: loyalty, serial_tracking, batch_tracking |
+| Field | Name | Required | Type |
+|-------|------|----------|------|
+| Tenant Code | `tenantCode` | ✅ | Text — uppercase, unique |
+| Tenant Name | `tenantName` | ✅ | Text |
+| Company Name | `companyName` | ✅ | Text |
+| Contact Name | `contactName` | ✅ | Text |
+| Contact Email | `contactEmail` | ✅ | Email |
+| Contact Phone | `contactPhone` | ❌ | Text |
+| DB Host | `dbHost` | ❌ | Text, default `localhost` |
+| DB Port | `dbPort` | ❌ | Number, default `3306` |
 
-**Auto-slug:** Khi user gõ Tenant Name, tự động generate slug (lowercase, replace space bằng `-`, remove ký tự đặc biệt). User có thể sửa thủ công.
+### Implementation
+
+```jsx
+import { Form, Input, InputNumber, Button, Card, Row, Col } from 'antd';
+import { tenantsApi } from '@api/platform.api';
+
+export default function TenantCreate() {
+  const [form] = Form.useForm();
+
+  const onFinish = async (values) => {
+    try {
+      await tenantsApi.create(values);
+      message.success('Tenant provisioning started');
+      navigate('/platform/tenants');
+    } catch {
+      message.error('Failed to create tenant');
+    }
+  };
+
+  return (
+    <div>
+      <PageHeader title="Create Tenant" />
+      <Card>
+        <Form form={form} onFinish={onFinish} layout="vertical">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="tenantCode" label="Tenant Code" rules={[{ required: true }]}>
+                <Input placeholder="ACME_CORP" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="contactEmail" label="Contact Email" rules={[{ required: true, type: 'email' }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            {/* dbHost, dbPort, etc. */}
+          </Row>
+          <Form.Item>
+            <Button type="primary" htmlType="submit">Create & Provision</Button>
+          </Form.Item>
+        </Form>
+      </Card>
+    </div>
+  );
+}
+```
 
 ### Flow
-1. User click "Create Tenant" → mở modal
-2. Điền form → click "Create"
-3. API `POST /tenants` gọi → loading state trên button
-4. Success: đóng modal, show toast "Tenant created. Provisioning in progress.", thêm row mới vào bảng với badge PENDING
-5. Error 409: hiển thị inline error "Slug already exists" / "Domain already exists"
-6. Polling provision status: mỗi 5 giây `GET /tenants/:id` nếu status là PENDING, cập nhật badge khi thành ACTIVE/FAILED
-
-### States
-- Button "Create": loading spinner khi đang submit
-- Slug field: async validation "Checking availability..." với debounce
-- Provision polling: badge PENDING + spinner icon, tự dừng khi status thay đổi
+1. Submit → `tenantsApi.create(values)`
+2. Success: `message.success(...)` → navigate to `/platform/tenants`
+3. Error: `message.error(...)`
 
 ---
 
-## 1.3 Tenant Detail / Edit Screen
+## 1.3 Tenant Detail Screen
 
 ### Task: #9
 
-**Route:** `/admin/tenants/:id`
+**Route:** `/platform/tenants/:id`
+**File:** `src/platform/pages/TenantDetail.jsx`
 
 ### Layout
 ```
-[← Back]  "Acme Corp"  [Status: ACTIVE]  [Suspend] [Reset Admin]
+[← Back]  [tenantName]   [Status Tag]
 ─────────────────────────
-Tabs: [General Info] [Configuration] [Provision Log]
+Tabs: [Info] [Provision Log]
 ─────────────────────────
-General Info tab:
-  Name: [input]
-  Domain: [input]
-  Admin Email: (read-only, shown for reference)
-  Created At: (read-only)
+Info tab:
+  Tenant Code: (read-only)
+  Tenant Name: [input]
+  Company Name: [input]
+  Contact Email: [input]
+  Contact Phone: [input]
   [Save Changes]
 ```
 
-### Form Fields (editable)
-| Field | Editable | Validation |
-|-------|----------|------------|
-| Name | ✅ | Min 2 ký tự |
-| Domain | ✅ | Valid domain format |
-| Max Users (config) | ✅ | Number, min 1 |
-| Features enabled | ✅ | Multi-select checkboxes |
-| Slug | ❌ | Display only |
-| Admin Email | ❌ | Display only |
-
-### Configuration Tab
-Checkbox grid các features có thể bật/tắt cho tenant:
-- `loyalty` — Chương trình tích điểm
-- `batch_tracking` — Quản lý số lô/HSD
-- `serial_tracking` — Quản lý Serial/IMEI
-- `consignment` — Nghiệp vụ ký gửi
-
 ### API Integration
-- Load: `GET /tenants/:id`
-- Save: `PUT /tenants/:id` với changed fields
-- Optimistic UI: không áp dụng — chờ API confirm trước khi cập nhật
+
+```jsx
+import { tenantsApi } from '@api/platform.api';
+import { useApi } from '@shared/hooks/useApi';
+
+const { execute: updateTenant } = useApi(
+  (data) => tenantsApi.update(id, data),
+  { successMessage: 'Tenant updated' }
+);
+```
 
 ---
 
-## 1.4 Suspend / Activate Button
+## 1.4 Suspend / Activate
 
 ### Task: #11
 
-**Location:** Tenant Detail page — header area
+**Location:** Tenant Detail page
 
-**Suspend flow:**
-1. User click "Suspend" → mở Confirm Dialog
-2. Dialog: "Are you sure? All active sessions will be terminated."
-3. Textarea nhập `reason` (required)
-4. Confirm → `PATCH /tenants/:id/status { status: "SUSPENDED", reason }`
-5. Success: Badge đổi sang SUSPENDED, button đổi thành "Activate"
+```jsx
+import { tenantsApi } from '@api/platform.api';
 
-**Activate flow:**
-1. User click "Activate" → Confirm Dialog (không cần reason)
-2. Confirm → `PATCH /tenants/:id/status { status: "ACTIVE" }`
-3. Success: Badge đổi sang ACTIVE
+// Suspend
+await tenantsApi.updateStatus(id, { status: 'SUSPENDED' });
+// Activate
+await tenantsApi.updateStatus(id, { status: 'ACTIVE' });
+```
 
-### Edge Cases
-- Đang PENDING hoặc FAILED: ẩn cả 2 nút Suspend/Activate
-- Loading state: disable button khi đang gọi API
+**Status transitions:** `ACTIVE → SUSPENDED`, `SUSPENDED → ACTIVE`
+Button shown/hidden based on current `status`.
 
 ---
 
-## 1.5 Reset Admin Password Button
+## 1.5 Platform Users Screen
 
 ### Task: #13
 
-**Location:** Tenant Detail page — header area
+**Route:** `/platform/users`
+**File:** `src/platform/pages/PlatformUsers.jsx`
 
-**Flow:**
-1. User click "Reset Admin Password"
-2. Confirm Dialog: "This will reset the admin password and send a new one via email."
-3. Confirm → `POST /tenants/:id/reset-admin`
-4. Success: Toast "Password reset email sent to admin@acme.com"
+### Pattern
+
+```jsx
+import { platformUsersApi } from '@api/platform.api';
+
+const { fetch, loading, data, pagination, onTableChange } = usePagination(platformUsersApi.list);
+const { execute: toggleLock } = useApi(platformUsersApi.toggleLock, { onSuccess: () => fetch() });
+```
+
+### Columns
+- `username`, `email`, `role` (`<Tag>`), `status` (`<Tag color={v === 'ACTIVE' ? 'green' : 'red'}>`)
+- Actions: Lock/Unlock button — `PATCH /platform/users/:id/lock`
+
+---
+
+## API Reference
+
+```javascript
+// src/api/platform.api.js
+export const tenantsApi = {
+  list:          (params) => platformApi.get('/platform/tenants', { params }),
+  get:           (id)     => platformApi.get(`/platform/tenants/${id}`),
+  create:        (data)   => platformApi.post('/platform/tenants', data),
+  update:        (id, d)  => platformApi.put(`/platform/tenants/${id}`, d),
+  updateStatus:  (id, d)  => platformApi.patch(`/platform/tenants/${id}/status`, d),
+  reprovision:   (id)     => platformApi.post(`/platform/tenants/${id}/provision`),
+  resetAdmin:    (id)     => platformApi.post(`/platform/tenants/${id}/reset-admin`),
+  provisioningLog:(id)    => platformApi.get(`/platform/tenants/${id}/provisioning-log`),
+};
+
+export const platformUsersApi = {
+  list:       (params) => platformApi.get('/platform/users', { params }),
+  create:     (data)   => platformApi.post('/platform/users', data),
+  update:     (id, d)  => platformApi.put(`/platform/users/${id}`, d),
+  toggleLock: (id)     => platformApi.patch(`/platform/users/${id}/lock`),
+};
+```
 
 ---
 
 ## Navigation Flow
 
 ```
-/admin/tenants (List)
-  └─ Click "Create" → CreateTenantModal (trong cùng trang)
-  └─ Click row → /admin/tenants/:id (Detail)
-       ├─ Edit info → Save → Stay on page
-       ├─ Suspend/Activate → Inline state change
-       └─ Reset Admin → Toast notification
+/platform/tenants (TenantList)
+  └─ Click "+ New Tenant" → /platform/tenants/new (TenantCreate)
+  └─ Click "View" → /platform/tenants/:id (TenantDetail)
+       ├─ Edit info → Save
+       ├─ updateStatus (Suspend/Activate)
+       └─ resetAdmin → toast
+
+/platform/users (PlatformUsers)
+  └─ Lock/Unlock inline
+  └─ Add User → modal or drawer
 ```
-
----
-
-## Shared Components
-
-| Component | Mô tả |
-|-----------|-------|
-| `<TenantStatusBadge status />` | Badge màu theo status enum |
-| `<ConfirmDialog title message onConfirm />` | Dialog xác nhận tái sử dụng |
-| `<ProvisionProgress tenantId />` | Polling component hiển thị tiến trình provision |
-| `<FeatureCheckboxGroup value onChange />` | Multi-select features configuration |

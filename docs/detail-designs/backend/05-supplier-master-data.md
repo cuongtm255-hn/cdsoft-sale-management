@@ -4,11 +4,21 @@
 
 ---
 
+## Architecture Notes
+
+- Module path: `src/tenant-module/suppliers/`
+- Guard: `@UseGuards(JwtAuthGuard)` on controller class — **no `RolesGuard`**
+- All routes prefixed with `tenant/suppliers`
+- Service uses `getRepo()` pattern via `TenantDataSourceManager` + `TenantContextService`
+- Register in `TenantAppModule.controllers[]` and `providers[]`
+
+---
+
 ## 5.1 Supplier CRUD
 
-### `GET /suppliers`
+### `GET /tenant/suppliers`
 
-**Auth:** JWT · Roles: `TENANT_ADMIN`, `MANAGER`, `ACCOUNTANT`, `WAREHOUSE`
+**Auth:** `@UseGuards(JwtAuthGuard)`
 
 **Query Params:**
 | Param | Type | Description |
@@ -42,9 +52,9 @@
 
 ---
 
-### `POST /suppliers`
+### `POST /tenant/suppliers`
 
-**Auth:** JWT · Roles: `TENANT_ADMIN`, `MANAGER`
+**Auth:** `@UseGuards(JwtAuthGuard)`
 
 **Request Body:**
 ```json
@@ -92,9 +102,9 @@
 
 ---
 
-### `PUT /suppliers/:id`
+### `PUT /tenant/suppliers/:id`
 
-**Auth:** JWT · Roles: `TENANT_ADMIN`, `MANAGER`
+**Auth:** `@UseGuards(JwtAuthGuard)`
 
 **Request Body:** Tương tự POST, tất cả optional
 
@@ -104,9 +114,9 @@
 
 ---
 
-### `DELETE /suppliers/:id` (Soft delete)
+### `DELETE /tenant/suppliers/:id` (Soft delete)
 
-**Auth:** JWT · Roles: `TENANT_ADMIN`
+**Auth:** `@UseGuards(JwtAuthGuard)` (role check in service)
 
 **Business Rules:**
 1. Chặn nếu `currentDebt > 0`

@@ -4,12 +4,28 @@
 
 ---
 
+## Architecture Notes
+
+- Tenant pages: `src/tenant/pages/`
+- Imports: `@shared/components/PageHeader`, `@shared/components/DataTable`, `@shared/hooks/useApi`, `@api/tenant.api`
+- API calls use `tenantApi` from `@api/axios` or add `loyaltyApi` to `@api/tenant.api`:
+  ```javascript
+  loyaltyApi = {
+    getConfig:   ()     => tenantApi.get('/tenant/loyalty/config'),
+    updateConfig:(data) => tenantApi.put('/tenant/loyalty/config', data),
+    getPoints:   (id)   => tenantApi.get(`/tenant/loyalty/customers/${id}/points`),
+    redeem:      (data) => tenantApi.post('/tenant/loyalty/redeem', data),
+  }
+  ```
+
+---
+
 ## 9.1 Loyalty Configuration Screen
 
 ### Task: #109
 
-**Route:** `/settings/loyalty`  
-**Access:** `TENANT_ADMIN`
+**Route:** `/tenant/settings/loyalty`
+**Access:** TENANT_ADMIN (role check in UI)
 
 ### Layout
 ```

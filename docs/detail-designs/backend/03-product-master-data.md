@@ -4,11 +4,40 @@
 
 ---
 
+## Architecture Notes
+
+- Module path: `src/tenant-module/products/`
+- Service pattern: `getRepo()` via `TenantDataSourceManager` + `TenantContextService` (same as `ProductsService`)
+- Guard: `@UseGuards(JwtAuthGuard)` on controller class — **no `RolesGuard`** on tenant module
+- Route prefix: `tenant/` for all endpoints
+- Register new controllers/services in `TenantAppModule.controllers[]` and `providers[]`
+- All schema changes require TypeORM migrations (`synchronize: false`)
+
+### Service Base Pattern
+
+```typescript
+@Injectable()
+export class ProductsService {
+  constructor(
+    private readonly dsManager: TenantDataSourceManager,
+    private readonly tenantCtx: TenantContextService,
+  ) {}
+
+  private async getRepo() {
+    const code = this.tenantCtx.getTenantCode()!;
+    const ds = await this.dsManager.getDataSource(code);
+    return ds.getRepository(Product);
+  }
+}
+```
+
+---
+
 ## 3.1 Product List
 
-### Task #25 — `GET /products`
+### Task #25 — `GET /tenant/products`
 
-**Auth:** JWT · Roles: All (except deactivated users)
+**Auth:** `@UseGuards(JwtAuthGuard)` (all authenticated tenant users)
 
 **Query Params:**
 | Param | Type | Description |
@@ -49,9 +78,9 @@
 
 ## 3.2 Create Product
 
-### Task #27 — `POST /products`
+### Task #27 — `POST /tenant/products`
 
-**Auth:** JWT · Roles: `TENANT_ADMIN`, `MANAGER`, `STAFF`
+**Auth:** `@UseGuards(JwtAuthGuard)`
 
 **Request Body:**
 ```json
@@ -103,9 +132,9 @@
 
 ## 3.3 Update Product
 
-### Task #28 — `PUT /products/:id`
+### Task #28 — `PUT /tenant/products/:id`
 
-**Auth:** JWT · Roles: `TENANT_ADMIN`, `MANAGER`, `STAFF`
+**Auth:** `@UseGuards(JwtAuthGuard)`
 
 **Request Body:** Tương tự POST, tất cả optional
 
@@ -181,9 +210,9 @@ reorderQuantity = max_stock_level - current_stock - pending_orders_quantity
 
 ## 3.7 Soft Delete Product
 
-### Task #34 — `DELETE /products/:id`
+### Task #34 — `DELETE /tenant/products/:id`
 
-**Auth:** JWT · Roles: `TENANT_ADMIN`
+**Auth:** `@UseGuards(JwtAuthGuard)` (role check done in service)
 
 **Business Rules:**
 1. Soft delete: cập nhật `is_active = false`, `deleted_at = NOW()`
@@ -203,9 +232,9 @@ reorderQuantity = max_stock_level - current_stock - pending_orders_quantity
 
 ## 3.8 Category Management
 
-### Task #36 — Category CRUD
+### Task #36 — Category CRUD (route prefix: `tenant/categories`)
 
-**`GET /categories`:** Trả về cây categories
+**`GET /tenant/categories`:** Trả về cây categories
 
 ```json
 [
@@ -222,14 +251,14 @@ reorderQuantity = max_stock_level - current_stock - pending_orders_quantity
 ]
 ```
 
-**`POST /categories`:**
+**`POST /tenant/categories`:**
 ```json
 { "name": "Nước uống", "parentId": "uuid-or-null", "description": "..." }
 ```
 
-**`PUT /categories/:id`:** Update name, description, parentId
+**`PUT /tenant/categories/:id`:** Update name, description, parentId
 
-**`DELETE /categories/:id`:**
+**`DELETE /tenant/categories/:id`:**
 - Chặn nếu có sản phẩm đang dùng category này
 - Chặn nếu có subcategories (phải xóa con trước)
 

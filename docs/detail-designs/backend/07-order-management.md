@@ -4,9 +4,24 @@
 
 ---
 
+## Architecture Notes
+
+- Module path: `src/tenant-module/purchase-orders/` and `src/tenant-module/sales-orders/`
+- Guard: `@UseGuards(JwtAuthGuard)` on controller class — **no `RolesGuard`**
+- Route prefixes: `tenant/purchase-orders`, `tenant/sales-orders` (as defined in `tenant.api.js`)
+- Service uses `getRepo()` pattern via `TenantDataSourceManager` + `TenantContextService`
+- Register in `TenantAppModule.controllers[]` and `providers[]`
+- Actual API routes (from `tenant.api.js`):
+  - `GET /tenant/purchase-orders`, `POST /tenant/purchase-orders`
+  - `PATCH /tenant/purchase-orders/:id/confirm`, `PATCH /tenant/purchase-orders/:id/receive`
+  - `GET /tenant/sales-orders`, `POST /tenant/sales-orders`
+  - `PATCH /tenant/sales-orders/:id/confirm`, `/ship`, `/complete`
+
+---
+
 ## 7.1 Order List
 
-### Task #70 — `GET /orders`
+### Task #70 — `GET /tenant/purchase-orders` / `GET /tenant/sales-orders`
 
 **Auth:** JWT · Roles: All (STAFF chỉ thấy đơn của mình nếu config)
 
@@ -46,7 +61,7 @@
 
 ## 7.2 Create Sales Order
 
-### Task #72 — `POST /orders`
+### Task #72 — `POST /tenant/sales-orders`
 
 **Auth:** JWT · Roles: `STAFF`, `MANAGER`, `TENANT_ADMIN`
 

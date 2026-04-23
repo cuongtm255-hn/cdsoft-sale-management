@@ -4,9 +4,20 @@
 
 ---
 
+## Architecture Notes
+
+- Module path: `src/tenant-module/inventory/`
+- Guard: `@UseGuards(JwtAuthGuard)` on controller class — **no `RolesGuard`**
+- All routes prefixed with `tenant/` (e.g. `tenant/inventory/stock-in`, `tenant/warehouses`, etc.)
+- Service uses `getRepo()` pattern via `TenantDataSourceManager` + `TenantContextService`
+- Register in `TenantAppModule.controllers[]` and `providers[]`
+- Actual route paths: `tenant/inventory/transactions`, `tenant/inventory/stock-in`, `tenant/inventory/stock-out`, `tenant/inventory/adjust` (as defined in `tenant.api.js`)
+
+---
+
 ## 6.1 Stock In — Nhập kho
 
-### Task #49 — `POST /stock-receipts`
+### Task #49 — `POST /tenant/inventory/stock-in`
 
 **Auth:** JWT · Roles: `WAREHOUSE`, `MANAGER`, `TENANT_ADMIN`
 
@@ -43,7 +54,7 @@
 
 ---
 
-### Task #50 — `PATCH /stock-receipts/:id/confirm`
+### Task #50 — `PATCH /tenant/inventory/stock-receipts/:id/confirm`
 
 **Auth:** JWT · Roles: `WAREHOUSE`, `MANAGER`, `TENANT_ADMIN`
 
@@ -128,7 +139,7 @@ Cập nhật `suppliers.current_debt += totalAmount`.
 
 ## 6.2 Stock Out — Xuất kho
 
-### Task #55 — `POST /stock-issues`
+### Task #55 — `POST /tenant/inventory/stock-out`
 
 **Auth:** JWT · Roles: `WAREHOUSE`, `MANAGER`
 
@@ -174,7 +185,7 @@ API: `GET /orders/:id/fulfillment` → trả `items[].orderedQty`, `items[].issu
 
 ## 6.3 Stock Adjustment
 
-### Task #58 — `POST /stock-adjustments`
+### Task #58 — `POST /tenant/inventory/adjust`
 
 **Auth:** JWT · Roles: `WAREHOUSE`, `MANAGER`, `TENANT_ADMIN`
 
@@ -208,7 +219,7 @@ API: `GET /orders/:id/fulfillment` → trả `items[].orderedQty`, `items[].issu
 
 ## 6.4 Warehouse Transfer
 
-### Task #60 — `POST /stock-transfers`
+### Task #60 — `POST /tenant/inventory/transfers`
 
 **Auth:** JWT · Roles: `WAREHOUSE`, `MANAGER`
 
@@ -236,7 +247,7 @@ API: `GET /orders/:id/fulfillment` → trả `items[].orderedQty`, `items[].issu
 
 ---
 
-### Task #61 — `PATCH /stock-transfers/:id/receive`
+### Task #61 — `PATCH /tenant/inventory/transfers/:id/receive`
 
 **Auth:** JWT · Roles: `WAREHOUSE` (của `toWarehouse`)
 
@@ -257,7 +268,7 @@ API: `GET /orders/:id/fulfillment` → trả `items[].orderedQty`, `items[].issu
 
 ## 6.5 Inventory View
 
-### Task #64 — `GET /inventory`
+### Task #64 — `GET /tenant/inventory/transactions`
 
 **Auth:** JWT · Roles: All
 
@@ -316,7 +327,7 @@ Nếu có kết quả → upsert vào `stock_alerts` table, dùng cho:
 
 ## 6.6 Stocktaking — Kiểm kê
 
-### Task #67 — `POST /stocktaking`
+### Task #67 — `POST /tenant/inventory/stocktaking`
 
 **Auth:** JWT · Roles: `WAREHOUSE`, `MANAGER`
 
@@ -337,7 +348,7 @@ Nếu có kết quả → upsert vào `stock_alerts` table, dùng cho:
 
 ---
 
-### Task #68 — `PATCH /stocktaking/:id/complete`
+### Task #68 — `PATCH /tenant/inventory/stocktaking/:id/complete`
 
 **Auth:** JWT · Roles: `WAREHOUSE`, `MANAGER`
 

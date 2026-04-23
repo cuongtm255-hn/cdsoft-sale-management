@@ -1,184 +1,382 @@
 # MODULE 11 — RBAC, Audit Log & System: Backend Detail Design
 
 > Ref: `usecase.md` UC-29, UC-30 | `srs-tenant-detail.md` Ch.8 | Feature list tasks #125–#136
+> Stack: **NestJS 10 + TypeORM + MySQL** | Source: `backend/src/`
+
+---
+
+## Cấu trúc file đề xuất
+
+```
+backend/src/
+└── tenant-module/
+    ├── roles/
+    │   ├── entities/
+    │   │   ├── role.entity.ts
+    │   │   ├── permission.entity.ts
+    │   │   └── role-permission.entity.ts
+    │   ├── dto/
+    │   │   ├── create-role.dto.ts
+    │   │   └── update-role-permissions.dto.ts
+    │   ├── roles.controller.ts
+    │   ├── roles.service.ts
+    │   └── roles.module.ts
+    ├── audit-log/
+    │   ├── entities/audit-log.entity.ts
+    │   ├── audit-log.interceptor.ts
+    │   ├── audit-log.controller.ts
+    │   ├── audit-log.service.ts
+    │   └── audit-log.module.ts
+    ├── warehouses/
+    │   ├── entities/warehouse.entity.ts
+    │   ├── warehouses.controller.ts
+    │   ├── warehouses.service.ts
+    │   └── warehouses.module.ts
+    └── finance/
+        ├── entities/
+        │   ├── cash-fund.entity.ts
+        │   └── bank-account.entity.ts
+        ├── dto/
+        ├── finance.controller.ts
+        ├── finance.service.ts
+        └── finance.module.ts
+```
 
 ---
 
 ## 11.1 Role-Based Access Control
 
-### Task #125 — RBAC Schema
+### Task #125 — RBAC Schema & Entities
 
+**Mô hình:** `User.role (string)` → `Role` → `RolePermission[]` → `Permission`
+
+> Lưu ý: Hiện tại `RolesGuard` đang dùng `user.role` (string) so với `@Roles()` decorator. RBAC granular mở rộng thêm permission-level check.
+
+**`role.entity.ts`**
+```typescript
+import { Column, Entity, OneToMany } from 'typeorm';
+import { BaseEntity } from '../../../common/entities/base.entity';
+import { RolePermission } from './role-permission.entity';
+
+@Entity('roles')
+export class Role extends BaseEntity {
+  @Column({ length: 50, unique: true })
+  name: string; // 'STAFF', 'WAREHOUSE', 'ACCOUNTANT', 'MANAGER', 'TENANT_ADMIN'
+
+  @Column({ length: 100 })
+  label: string; // 'Nhân viên bán hàng'
+
+  @Column({ default: false })
+  isSystem: boolean; // system roles không cho sửa permissions
+
+  @OneToMany(() => RolePermission, (rp) => rp.role)
+  rolePermissions: RolePermission[];
+}
 ```
-User ──has──> Role ──has-many──> RolePermission ──references──> Permission
+
+**`permission.entity.ts`**
+```typescript
+@Entity('permissions')
+export class Permission extends BaseEntity {
+  @Column({ length: 100, unique: true })
+  code: string; // 'products:read', 'orders:confirm', 'cost_price:read'
+
+  @Column({ length: 50 })
+  resource: string; // 'products', 'orders', 'inventory'
+
+  @Column({ length: 30 })
+  action: string; // 'read', 'write', 'delete', 'confirm'
+
+  @Column({ length: 255, nullable: true })
+  label: string; // 'Xem danh sách sản phẩm'
+}
 ```
 
-**Permission format:** `{resource}:{action}`
+**`role-permission.entity.ts`**
+```typescript
+@Entity('role_permissions')
+export class RolePermission {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-| Resource | Actions |
-|----------|---------|
-| `products` | `read`, `write`, `delete` |
-| `customers` | `read`, `write`, `delete` |
-| `orders` | `read`, `write`, `confirm`, `cancel` |
-| `inventory` | `read`, `write`, `adjust` |
-| `invoices` | `read`, `write` |
-| `payments` | `read`, `write` |
-| `reports` | `read` |
-| `reports.finance` | `read` (subset của reports) |
-| `users` | `read`, `write` |
-| `roles` | `read`, `write` |
-| `settings` | `read`, `write` |
-| `cost_price` | `read` |
-| `audit_logs` | `read` |
+  @ManyToOne(() => Role, (r) => r.rolePermissions, { onDelete: 'CASCADE' })
+  role: Role;
 
-**Default role permissions (seed data):**
+  @Column() roleId: string;
 
-| Permission | STAFF | WAREHOUSE | ACCOUNTANT | MANAGER | ADMIN |
-|-----------|-------|-----------|------------|---------|-------|
-| products:read | ✅ | ✅ | ✅ | ✅ | ✅ |
-| products:write | ✅ | ❌ | ❌ | ✅ | ✅ |
-| cost_price:read | ❌ | ❌ | ✅ | ✅ | ✅ |
-| orders:read | ✅ | ✅ | ✅ | ✅ | ✅ |
-| orders:write | ✅ | ❌ | ❌ | ✅ | ✅ |
-| orders:confirm | ✅ | ❌ | ❌ | ✅ | ✅ |
-| inventory:write | ❌ | ✅ | ❌ | ✅ | ✅ |
-| payments:write | ✅ | ❌ | ✅ | ✅ | ✅ |
-| reports:read | ❌ | ❌ | ✅ | ✅ | ✅ |
-| reports.finance:read | ❌ | ❌ | ✅ | ✅ | ✅ |
-| users:write | ❌ | ❌ | ❌ | ❌ | ✅ |
-| settings:write | ❌ | ❌ | ❌ | ❌ | ✅ |
-| audit_logs:read | ❌ | ❌ | ❌ | ✅ | ✅ |
+  @ManyToOne(() => Permission, { eager: true })
+  permission: Permission;
+
+  @Column() permissionId: string;
+}
+```
 
 ---
 
-### Task #126 — Permission Middleware
+### Task #125 — Permission Map (Seed Data)
+
+Seed file: `backend/src/tenant-module/roles/seeds/default-permissions.seed.ts`
+
+| Permission code | STAFF | WAREHOUSE | ACCOUNTANT | MANAGER | ADMIN |
+|----------------|-------|-----------|------------|---------|-------|
+| `products:read` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `products:write` | ✅ | ❌ | ❌ | ✅ | ✅ |
+| `products:delete` | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `cost_price:read` | ❌ | ❌ | ✅ | ✅ | ✅ |
+| `customers:read` | ✅ | ❌ | ✅ | ✅ | ✅ |
+| `customers:write` | ✅ | ❌ | ✅ | ✅ | ✅ |
+| `orders:read` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `orders:write` | ✅ | ❌ | ❌ | ✅ | ✅ |
+| `orders:confirm` | ✅ | ❌ | ❌ | ✅ | ✅ |
+| `orders:cancel` | ❌ | ❌ | ❌ | ✅ | ✅ |
+| `inventory:read` | ✅ | ✅ | ❌ | ✅ | ✅ |
+| `inventory:write` | ❌ | ✅ | ❌ | ✅ | ✅ |
+| `inventory:adjust` | ❌ | ✅ | ❌ | ✅ | ✅ |
+| `payments:read` | ✅ | ❌ | ✅ | ✅ | ✅ |
+| `payments:write` | ✅ | ❌ | ✅ | ✅ | ✅ |
+| `reports:read` | ❌ | ❌ | ✅ | ✅ | ✅ |
+| `reports.finance:read` | ❌ | ❌ | ✅ | ✅ | ✅ |
+| `users:read` | ❌ | ❌ | ❌ | ✅ | ✅ |
+| `users:write` | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `roles:write` | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `settings:write` | ❌ | ❌ | ❌ | ❌ | ✅ |
+| `audit_logs:read` | ❌ | ❌ | ❌ | ✅ | ✅ |
+
+---
+
+### Task #126 — `PermissionGuard` (mở rộng `RolesGuard`)
+
+File: `backend/src/common/guards/permission.guard.ts`
 
 ```typescript
-// Middleware function: checkPermission(permission: string)
-export const checkPermission = (permission: string) => {
-  return async (req, res, next) => {
-    const userRole = req.user.role
-    const hasPermission = await rolePermissionCache.has(userRole, permission)
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { PERMISSION_KEY } from '../decorators/permission.decorator';
+import { RolesService } from '../../tenant-module/roles/roles.service';
+
+@Injectable()
+export class PermissionGuard implements CanActivate {
+  constructor(
+    private reflector: Reflector,
+    private rolesService: RolesService,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const requiredPermission = this.reflector.getAllAndOverride<string>(PERMISSION_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (!requiredPermission) return true;
+
+    const { user } = context.switchToHttp().getRequest();
+    const hasPermission = await this.rolesService.checkPermission(user.role, requiredPermission);
     if (!hasPermission) {
-      return res.status(403).json({
-        error: 'PERMISSION_DENIED',
-        message: `Role '${userRole}' lacks permission: '${permission}'`
-      })
+      throw new ForbiddenException(`Permission denied: ${requiredPermission}`);
     }
-    next()
+    return true;
   }
 }
-
-// Usage on routes:
-router.get('/products', checkPermission('products:read'), handler)
-router.delete('/products/:id', checkPermission('products:delete'), handler)
 ```
 
-**Caching:** Role-permission map cache trong Redis với TTL 5 phút. Invalidate khi `PUT /roles/:id/permissions` được gọi.
+**Decorator:** `backend/src/common/decorators/permission.decorator.ts`
+```typescript
+import { SetMetadata } from '@nestjs/common';
+export const PERMISSION_KEY = 'permission';
+export const RequirePermission = (permission: string) => SetMetadata(PERMISSION_KEY, permission);
+```
+
+**Usage on controller:**
+```typescript
+@Get()
+@RequirePermission('products:read')
+findAll() { ... }
+
+@Delete(':id')
+@RequirePermission('products:delete')
+remove(@Param('id') id: string) { ... }
+```
+
+**Caching:** `rolesService.checkPermission()` nên cache kết quả trong Map (process-level) với TTL 5 phút. Invalidate khi `PUT /roles/:id/permissions` được gọi.
 
 ---
 
-### Task #127 — `GET /roles`
+### Task #127 — `GET /tenant/roles`
 
-**Auth:** JWT · Roles: `TENANT_ADMIN`
+**Auth:** `JwtAuthGuard` + `@RequirePermission('roles:read')`
+
+**Controller:** `backend/src/tenant-module/roles/roles.controller.ts`
 
 **Response 200:**
 ```json
-{
-  "data": [
-    {
-      "id": "uuid",
-      "name": "STAFF",
-      "label": "Nhân viên bán hàng",
-      "isSystem": true,
-      "userCount": 5,
-      "permissions": ["products:read", "orders:read", "orders:write", "orders:confirm"]
-    }
-  ]
-}
+[
+  {
+    "id": "uuid",
+    "name": "STAFF",
+    "label": "Nhân viên bán hàng",
+    "isSystem": true,
+    "userCount": 5,
+    "permissions": ["products:read", "orders:read", "orders:write", "orders:confirm"]
+  }
+]
 ```
 
-### Task #127 — `POST /roles`
+---
 
-**Request Body:**
-```json
-{
-  "name": "CUSTOM_ROLE",
-  "label": "Vai trò tùy chỉnh",
-  "permissions": ["products:read", "orders:read"]
-}
-```
+### Task #127 — `POST /tenant/roles`
 
-**Business Rules:**
-1. `name` unique trong tenant
-2. Không cho phép trùng tên với system roles
-3. `isSystem = false` cho roles tự tạo
+**Auth:** `@RequirePermission('roles:write')`
 
-### Task #127 — `PUT /roles/:id/permissions`
-
-**Request Body:**
-```json
-{
-  "permissions": ["products:read", "orders:read", "orders:write"]
+**`create-role.dto.ts`**
+```typescript
+export class CreateRoleDto {
+  @IsString() @Length(2, 50) name: string;
+  @IsString() @Length(2, 100) label: string;
+  @IsArray() @IsString({ each: true }) permissions: string[]; // ['products:read', ...]
 }
 ```
 
 **Business Rules:**
-1. Không cho phép sửa permissions của system roles (STAFF, WAREHOUSE, ACCOUNTANT, MANAGER)
-2. TENANT_ADMIN role không thể bị sửa
-3. Sau khi update: invalidate permission cache cho role đó
+1. `name` unique trong tenant, không trùng system role names
+2. Validate từng permission code tồn tại trong `permissions` table
+3. `isSystem = false` cho custom roles
+
+---
+
+### Task #127 — `PUT /tenant/roles/:id/permissions`
+
+**Auth:** `@RequirePermission('roles:write')`
+
+**`update-role-permissions.dto.ts`**
+```typescript
+export class UpdateRolePermissionsDto {
+  @IsArray() @IsString({ each: true }) permissions: string[];
+}
+```
+
+**Service logic:**
+```typescript
+async updatePermissions(roleId: string, dto: UpdateRolePermissionsDto) {
+  const role = await this.roleRepo.findOneOrFail({ where: { id: roleId } });
+  if (role.isSystem) throw new BadRequestException('Cannot modify system role permissions');
+
+  // Delete existing, insert new
+  await this.rolePermRepo.delete({ roleId });
+  const perms = await this.permissionRepo.findBy({ code: In(dto.permissions) });
+  await this.rolePermRepo.save(perms.map(p => ({ roleId, permissionId: p.id })));
+
+  // Invalidate cache
+  this.rolesService.invalidateCache(role.name);
+}
+```
 
 ---
 
 ## 11.2 Audit Log
 
-### Task #129 — Audit Log Middleware
+### Task #129 — `AuditLogInterceptor`
 
-**Trigger:** Tự động sau mọi mutation (POST, PUT, PATCH, DELETE) thành công
+File: `backend/src/tenant-module/audit-log/audit-log.interceptor.ts`
 
 ```typescript
-// Applied as post-handler middleware
-const auditLogMiddleware = async (req, res, next) => {
-  const originalJson = res.json.bind(res)
-  res.json = (body) => {
-    // After response sent, log the action
-    if (res.statusCode < 400) {
-      await auditLogger.log({
-        userId: req.user?.id,
-        tenantId: req.user?.tenantId,
-        action: `${req.method}:${req.route.path}`,
-        resource: extractResource(req.route.path),
-        resourceId: req.params.id,
-        before: req.beforeSnapshot,  // set by route handler if needed
-        after: sanitize(body),       // remove sensitive fields
-        ipAddress: req.ip,
-        userAgent: req.headers['user-agent'],
-        timestamp: new Date()
-      })
-    }
-    return originalJson(body)
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
+import { tap } from 'rxjs/operators';
+import { AuditLogService } from './audit-log.service';
+
+@Injectable()
+export class AuditLogInterceptor implements NestInterceptor {
+  constructor(private auditLogService: AuditLogService) {}
+
+  intercept(context: ExecutionContext, next: CallHandler) {
+    const req = context.switchToHttp().getRequest();
+    const { method, url, user, body, params } = req;
+
+    // Only log mutations
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return next.handle();
+
+    return next.handle().pipe(
+      tap(async (responseData) => {
+        await this.auditLogService.log({
+          userId: user?.id,
+          userName: user?.name,
+          userRole: user?.role,
+          action: `${method} ${url}`,
+          resource: this.extractResource(url),
+          resourceId: params?.id,
+          afterData: this.sanitize(responseData),
+          ipAddress: req.ip,
+        });
+      }),
+    );
   }
-  next()
+
+  private extractResource(url: string): string {
+    const parts = url.replace(/\/tenant\//, '').split('/');
+    return parts[0] ?? 'unknown';
+  }
+
+  private sanitize(data: any): any {
+    if (!data) return null;
+    const sensitive = ['password', 'passwordHash', 'token', 'refreshToken'];
+    const clone = JSON.parse(JSON.stringify(data ?? {}));
+    sensitive.forEach(k => delete clone[k]);
+    return clone;
+  }
 }
 ```
 
-**Important:** `before` snapshot chỉ cần thiết cho PUT/PATCH. Middleware sẽ fetch before state trước khi execute.
+**Đăng ký global trong `tenant-app.module.ts`:**
+```typescript
+{ provide: APP_INTERCEPTOR, useClass: AuditLogInterceptor }
+```
 
-**Sensitive data masking:** Không log `password`, `token`, thông tin thẻ ngân hàng.
+**`audit-log.entity.ts`**
+```typescript
+@Entity('audit_logs')
+export class AuditLog {
+  @PrimaryGeneratedColumn('uuid') id: string;
+
+  @Column({ nullable: true }) userId: string;
+  @Column({ length: 255, nullable: true }) userName: string;
+  @Column({ length: 50, nullable: true }) userRole: string;
+  @Column({ length: 200 }) action: string;        // 'POST /tenant/orders'
+  @Column({ length: 50 }) resource: string;       // 'orders'
+  @Column({ nullable: true }) resourceId: string;
+  @Column({ type: 'json', nullable: true }) beforeData: object;
+  @Column({ type: 'json', nullable: true }) afterData: object;
+  @Column({ length: 45, nullable: true }) ipAddress: string;
+  @CreateDateColumn() createdAt: Date;
+}
+```
 
 ---
 
-### Task #130 — `GET /audit-logs`
+### Task #130 — `GET /tenant/audit-logs`
 
-**Auth:** JWT · Roles: `MANAGER`, `TENANT_ADMIN`
+**Auth:** `@RequirePermission('audit_logs:read')`
 
-**Query Params:**
-| Param | Type | Description |
-|-------|------|-------------|
-| `userId` | uuid | Filter actor |
-| `resource` | string | `products`, `orders`, `customers`, etc. |
-| `action` | string | `POST`, `PUT`, `DELETE` |
-| `from` / `to` | datetime | Khoảng thời gian |
-| `page` / `limit` | number | Phân trang |
+**Query Params (DTO):**
+```typescript
+export class AuditLogQueryDto extends PaginationDto {
+  @IsOptional() @IsUUID() userId?: string;
+  @IsOptional() @IsString() resource?: string;
+  @IsOptional() @IsString() action?: string;    // 'POST', 'PUT', 'DELETE', 'PATCH'
+  @IsOptional() @IsDateString() from?: string;
+  @IsOptional() @IsDateString() to?: string;
+}
+```
+
+**Service query pattern:**
+```typescript
+const qb = this.auditLogRepo.createQueryBuilder('log')
+  .orderBy('log.createdAt', 'DESC');
+
+if (dto.userId)   qb.andWhere('log.userId = :userId', { userId: dto.userId });
+if (dto.resource) qb.andWhere('log.resource = :resource', { resource: dto.resource });
+if (dto.from)     qb.andWhere('log.createdAt >= :from', { from: dto.from });
+if (dto.to)       qb.andWhere('log.createdAt <= :to', { to: dto.to });
+
+const [data, total] = await qb.skip(dto.skip).take(dto.limit).getManyAndCount();
+```
 
 **Response 200:**
 ```json
@@ -186,14 +384,16 @@ const auditLogMiddleware = async (req, res, next) => {
   "data": [
     {
       "id": "uuid",
-      "user": { "id": "uuid", "name": "Nguyen Van A", "role": "STAFF" },
-      "action": "PUT:/orders/:id/confirm",
+      "userId": "uuid",
+      "userName": "Nguyen Van A",
+      "userRole": "STAFF",
+      "action": "PATCH /tenant/orders/:id/confirm",
       "resource": "orders",
       "resourceId": "uuid",
-      "before": { "status": "DRAFT" },
-      "after": { "status": "CONFIRMED" },
+      "beforeData": { "status": "DRAFT" },
+      "afterData": { "status": "CONFIRMED" },
       "ipAddress": "192.168.1.10",
-      "createdAt": "2026-04-22T14:30:00Z"
+      "createdAt": "2026-04-22T14:30:05Z"
     }
   ],
   "meta": { "total": 1250, "page": 1, "limit": 50 }
@@ -202,82 +402,189 @@ const auditLogMiddleware = async (req, res, next) => {
 
 ---
 
-## 11.3 Cash & Bank Management
+## 11.3 Warehouse Management
 
 ### Task #132 — Warehouse CRUD
 
-**`GET /warehouses`:** Danh sách kho
-**`POST /warehouses`:** Tạo kho mới
-**`PUT /warehouses/:id`:** Cập nhật kho
-**`DELETE /warehouses/:id`:** Chỉ khi không có tồn kho
+**Entity:** `backend/src/tenant-module/warehouses/entities/warehouse.entity.ts`
+```typescript
+@Entity('warehouses')
+export class Warehouse extends BaseEntity {
+  @Column({ length: 255 })
+  name: string;
 
-### Task #132 — Cash Fund & Bank Account CRUD
+  @Column({ type: 'text', nullable: true })
+  address: string;
 
-**`GET /cash-funds`:** Danh sách quỹ + số dư
-**`POST /cash-funds`:** Tạo quỹ
-**`GET /bank-accounts`:** Danh sách tài khoản ngân hàng
-**`POST /bank-accounts`:** Thêm tài khoản
+  @Column({ default: true })
+  isActive: boolean;
+}
+```
 
-### Task #133 — Manual Receipt/Disbursement Approval
-
-**Approval flow:**
-1. STAFF tạo phiếu chi > threshold → `status = PENDING_APPROVAL`
-2. MANAGER/ADMIN duyệt: `PATCH /cash-disbursements/:id/approve`
-3. Từ chối: `PATCH /cash-disbursements/:id/reject { reason }`
-4. Sau duyệt: debit tài khoản/quỹ, ghi transaction
-
-### Task #134 — Bank Reconciliation
-
-**`POST /bank-reconciliation/import`:**
-- Upload file CSV/XLSX sao kê ngân hàng
-- Parse transactions từ file
-- Auto-match với `cash_receipts`/`cash_disbursements` bằng `transactionRef` hoặc `amount + date`
-
-**`GET /bank-reconciliation/unmatched`:**
-- Trả danh sách giao dịch chưa khớp từ cả 2 phía
+**Endpoints:**
+- `GET /tenant/warehouses` — list active warehouses
+- `POST /tenant/warehouses` — `@RequirePermission('settings:write')`
+- `PUT /tenant/warehouses/:id` — `@RequirePermission('settings:write')`
+- `DELETE /tenant/warehouses/:id` — chặn nếu có `inventory_balances.quantity > 0`
 
 ---
 
-## Database Schema
+## 11.4 Cash & Bank Management
 
-```sql
-CREATE TABLE roles (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name        VARCHAR(50) NOT NULL UNIQUE,
-  label       VARCHAR(100) NOT NULL,
-  is_system   BOOLEAN NOT NULL DEFAULT false,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+### Task #132 — Entities
 
-CREATE TABLE permissions (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code        VARCHAR(100) NOT NULL UNIQUE,
-  label       VARCHAR(255),
-  resource    VARCHAR(50) NOT NULL,
-  action      VARCHAR(30) NOT NULL
-);
+**`cash-fund.entity.ts`**
+```typescript
+@Entity('cash_funds')
+export class CashFund extends BaseEntity {
+  @Column({ length: 100 })
+  name: string;
 
-CREATE TABLE role_permissions (
-  role_id       UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
-  permission_id UUID NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
-  PRIMARY KEY (role_id, permission_id)
-);
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 })
+  balance: number;
 
-CREATE TABLE audit_logs (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id      UUID REFERENCES users(id),
-  user_name    VARCHAR(255),
-  user_role    VARCHAR(50),
-  action       VARCHAR(100) NOT NULL,
-  resource     VARCHAR(50) NOT NULL,
-  resource_id  UUID,
-  before_data  JSONB,
-  after_data   JSONB,
-  ip_address   VARCHAR(45),
-  user_agent   TEXT,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+  @Column({ length: 10, default: 'VND' })
+  currency: string;
 
--- Partitioned by month for performance
-CREATE TABLE audit_logs PARTITION BY RANGE (created_at);
+  @Column({ default: true })
+  isActive: boolean;
+}
 ```
+
+**`bank-account.entity.ts`**
+```typescript
+@Entity('bank_accounts')
+export class BankAccount extends BaseEntity {
+  @Column({ length: 100 }) bankName: string;
+  @Column({ length: 50 })  accountNumber: string;
+  @Column({ length: 255 }) accountName: string;
+  @Column({ length: 100, nullable: true }) branch: string;
+  @Column({ type: 'decimal', precision: 18, scale: 2, default: 0 }) balance: number;
+  @Column({ length: 10, default: 'VND' }) currency: string;
+  @Column({ default: true }) isActive: boolean;
+}
+```
+
+### Task #133 — Manual Receipt/Disbursement
+
+**`POST /tenant/finance/receipts`** (phiếu thu thủ công)
+**`POST /tenant/finance/disbursements`** (phiếu chi)
+
+**`create-disbursement.dto.ts`**
+```typescript
+export class CreateDisbursementDto {
+  @IsEnum(['SUPPLIER_PAYMENT', 'SALARY', 'OVERHEAD', 'OTHER'])
+  disbursementType: string;
+
+  @IsOptional() @IsUUID() supplierId?: string;
+  @IsOptional() @IsUUID() apRecordId?: string;
+  @IsOptional() @IsUUID() cashFundId?: string;
+  @IsOptional() @IsUUID() bankAccountId?: string;
+
+  @IsNumber() @Min(0.01) amount: number;
+
+  @IsOptional() @IsString() description: string;
+
+  @IsBoolean() @IsOptional() requiresApproval: boolean = false;
+}
+```
+
+**Approval flow:**
+- Disbursement > configurable threshold → `status = 'PENDING_APPROVAL'`
+- `PATCH /tenant/finance/disbursements/:id/approve` — `@Roles('MANAGER', 'TENANT_ADMIN')`
+- `PATCH /tenant/finance/disbursements/:id/reject` — body: `{ reason: string }`
+
+### Task #134 — Bank Reconciliation
+
+**`POST /tenant/finance/bank-reconciliation/import`**
+- Accepts: `multipart/form-data` với file CSV/XLSX
+- Parse sao kê → match với `payments` / `disbursements` theo `transactionRef` hoặc `amount + date ± 1 ngày`
+- Trả về `matched[]` và `unmatched[]`
+
+**`GET /tenant/finance/bank-reconciliation/unmatched`**
+- Danh sách giao dịch trong sao kê chưa khớp với bất kỳ chứng từ nào
+
+---
+
+## Database Schema (Migration)
+
+```typescript
+// Migration: CreateRbacTables
+export class CreateRbacTables implements MigrationInterface {
+  async up(queryRunner: QueryRunner) {
+    await queryRunner.query(`
+      CREATE TABLE roles (
+        id         VARCHAR(36) PRIMARY KEY,
+        name       VARCHAR(50) NOT NULL UNIQUE,
+        label      VARCHAR(100) NOT NULL,
+        is_system  TINYINT(1) NOT NULL DEFAULT 0,
+        created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+        updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+        deleted_at DATETIME(6) NULL
+      )
+    `);
+
+    await queryRunner.query(`
+      CREATE TABLE permissions (
+        id       VARCHAR(36) PRIMARY KEY,
+        code     VARCHAR(100) NOT NULL UNIQUE,
+        resource VARCHAR(50) NOT NULL,
+        action   VARCHAR(30) NOT NULL,
+        label    VARCHAR(255) NULL
+      )
+    `);
+
+    await queryRunner.query(`
+      CREATE TABLE role_permissions (
+        id            VARCHAR(36) PRIMARY KEY,
+        role_id       VARCHAR(36) NOT NULL,
+        permission_id VARCHAR(36) NOT NULL,
+        UNIQUE KEY uq_role_perm (role_id, permission_id),
+        FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+        FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
+      )
+    `);
+
+    await queryRunner.query(`
+      CREATE TABLE audit_logs (
+        id          VARCHAR(36) PRIMARY KEY,
+        user_id     VARCHAR(36) NULL,
+        user_name   VARCHAR(255) NULL,
+        user_role   VARCHAR(50) NULL,
+        action      VARCHAR(200) NOT NULL,
+        resource    VARCHAR(50) NOT NULL,
+        resource_id VARCHAR(36) NULL,
+        before_data JSON NULL,
+        after_data  JSON NULL,
+        ip_address  VARCHAR(45) NULL,
+        created_at  DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+        INDEX idx_audit_resource (resource),
+        INDEX idx_audit_user (user_id),
+        INDEX idx_audit_created (created_at)
+      )
+    `);
+
+    await queryRunner.query(`
+      CREATE TABLE warehouses (
+        id         VARCHAR(36) PRIMARY KEY,
+        name       VARCHAR(255) NOT NULL,
+        address    TEXT NULL,
+        is_active  TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+        updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+        deleted_at DATETIME(6) NULL
+      )
+    `);
+  }
+}
+```
+
+---
+
+## Notes (đối chiếu source hiện tại)
+
+- `RolesGuard` hiện tại (`roles.guard.ts`) chỉ check `user.role` string → `PermissionGuard` là **bổ sung**, không thay thế — dùng song song
+- `BaseEntity` đã có `deletedAt` (soft delete via `@DeleteDateColumn`) → dùng `withDeleted()` khi cần query cả deleted
+- Tenant DB isolation: toàn bộ entities module 11 thuộc **tenant schema** → đặt trong `tenant-module/`
+- `AuditLogInterceptor` dùng `APP_INTERCEPTOR` (global) thay vì gắn vào từng controller
+- Audit log partition theo tháng nếu dữ liệu lớn: tạo partition trong migration riêng

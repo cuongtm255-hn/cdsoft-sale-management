@@ -4,306 +4,264 @@
 
 ---
 
-## 2.1 Login
+## Architecture Notes
 
-### Task #14 — `POST /auth/login`
+- Tenant auth lives in `src/tenant-module/auth/`
+- User management lives in `src/tenant-module/users/` (to be created)
+- Service pattern: `getRepo()` via `TenantDataSourceManager` + `TenantContextService`
+- Guard: `@UseGuards(JwtAuthGuard)` only — **no `RolesGuard`** on tenant module
+- New controllers/services must be added to `TenantAppModule` (`controllers[]` + `providers[]`)
+- JWT: 8h expiry, payload `{ sub, email, role, tenantCode, userType: 'TENANT' }` — **no refresh token**
 
-**Auth:** None (public)
+---
 
-**Request Body:**
-```json
-{
-  "email": "staff@acme.com",
-  "password": "SecurePass123!",
-  "tenantSlug": "acme-corp"
-}
-```
+## 2.1 Tenant Login
 
-**Business Rules:**
-1. Lookup user bằng `email` + `tenantSlug` (mỗi tenant có user space riêng)
-2. Kiểm tra tenant status → từ chối login nếu `SUSPENDED` (403)
-3. Kiểm tra user `isActive` → từ chối nếu bị deactivate (403)
-4. So sánh password với `bcrypt.compare`
-5. Nếu user có `twoFactorEnabled = true` → không trả token, trả `requiresTwoFactor = true`
-6. Ghi nhận failed login — lock account sau 5 lần liên tiếp (lockout 15 phút)
+### `POST /tenant/auth/login`
 
-**Response 200 (login bình thường):**
-```json
-{
-  "accessToken": "eyJhbGci...",
-  "refreshToken": "uuid-v4",
-  "expiresIn": 900,
-  "user": {
-    "id": "uuid",
-    "name": "John Staff",
-    "email": "staff@acme.com",
-    "role": "STAFF",
-    "tenantId": "uuid"
+**Auth:** None — decorated with `@Public()`
+
+**Controller:**
+```typescript
+@ApiTags('Tenant Auth')
+@Controller('tenant/auth')
+export class TenantAuthController {
+  @Public()
+  @Post('login')
+  login(@Body() dto: TenantLoginDto) {
+    return this.service.login(dto);
   }
 }
 ```
 
-**Response 200 (cần 2FA):**
-```json
-{
-  "requiresTwoFactor": true,
-  "twoFactorToken": "short-lived-token-for-2fa-step"
+**DTO:**
+```typescript
+export class TenantLoginDto {
+  @ApiProperty() @IsString() tenantCode: string;
+  @ApiProperty() @IsEmail() email: string;
+  @ApiProperty() @IsString() password: string;
 }
+```
+
+**Service:**
+```typescript
+@Injectable()
+export class TenantAuthService {
+  constructor(
+    private readonly dsManager: TenantDataSourceManager,
+    private readonly jwtService: JwtService,
+  ) {}
+
+  async login(dto: TenantLoginDto) {
+    const ds = await this.dsManager.getDataSource(dto.tenantCode);
+    const userRepo = ds.getRepository(User);
+    const user = await userRepo.findOne({ where: { email: dto.email } });
+    if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    const payload = { sub: user.id, email: user.email, role: user.role,
+                      tenantCode: dto.tenantCode, userType: 'TENANT' };
+    return { accessToken: this.jwtService.sign(payload), expiresIn: 8 * 60 * 60 };
+  }
+}
+```
+
+**Business Rules:**
+1. Lookup tenant DataSource bằng `tenantCode` — throws `NotFoundException` nếu không tìm thấy
+2. Query `users` table trong tenant DB
+3. `bcrypt.compare` password
+4. Check user `status === ACTIVE`
+5. Sign JWT với `expiresIn: 8 * 60 * 60`
+
+**Response 200:**
+```json
+{ "accessToken": "eyJ...", "expiresIn": 28800 }
 ```
 
 **Errors:**
 | Code | HTTP | Condition |
 |------|------|-----------|
-| `INVALID_CREDENTIALS` | 401 | Email/password sai |
-| `TENANT_SUSPENDED` | 403 | Tenant bị suspend |
-| `USER_INACTIVE` | 403 | User bị deactivate |
-| `ACCOUNT_LOCKED` | 429 | Quá số lần thử |
-| `TENANT_NOT_FOUND` | 404 | Slug không tồn tại |
+| `UnauthorizedException` | 401 | Credentials sai |
+| `NotFoundException` | 404 | `tenantCode` không tồn tại |
 
-**DB:** `users`, `tenants`, `login_attempts`
-
----
-
-### Task #15 — JWT + Refresh Token
-
-**Access Token:**
-- Algorithm: HS256 (hoặc RS256 cho production)
-- Expiry: 15 phút
-- Payload: `{ sub: userId, tenantId, role, iat, exp }`
-
-**Refresh Token:**
-- Stored in DB (table `refresh_tokens`)
-- Expiry: 7 ngày
-- One-time use (rotate on refresh)
-
-**`POST /auth/refresh`:**
-```json
-Request:  { "refreshToken": "uuid" }
-Response: { "accessToken": "...", "refreshToken": "new-uuid", "expiresIn": 900 }
-```
-
-**`POST /auth/logout`:**
-- Delete refresh token khỏi DB
-- Response: 204 No Content
-
-**DB:** `refresh_tokens(id, user_id, tenant_id, token_hash, expires_at, created_at)`
-
----
-
-### Task #16 — Two-Factor Authentication (2FA)
-
-**Scope:** Bắt buộc cho role `ADMIN`, `MANAGER`; optional cho các role khác (SRS 8.1)
-
-**Flow:**
-1. Login thành công nhưng user có `twoFactorEnabled = true`
-2. Server trả `twoFactorToken` (short-lived JWT, 5 phút, scope = "2fa")
-3. Server gửi OTP 6 chữ số qua email/SMS
-
-**`POST /auth/verify-2fa`:**
-```json
-Request:
-{
-  "twoFactorToken": "short-lived-token",
-  "otp": "123456"
-}
-Response: (giống response login thành công)
-{
-  "accessToken": "...",
-  "refreshToken": "...",
-  "expiresIn": 900
-}
-```
-
-**Business Rules:**
-- OTP có hiệu lực 5 phút
-- Hết hiệu lực hoặc sai 3 lần: yêu cầu login lại
-- OTP stored hashed trong `two_factor_codes(user_id, code_hash, expires_at, used_at)`
+> Note: Refresh token mechanism not implemented. Future: add `POST /tenant/auth/refresh` + `POST /tenant/auth/logout`.
 
 ---
 
 ## 2.2 User Management
 
-### Task #19 — `GET /users`
+### Base Service Pattern
 
-**Auth:** JWT · Roles: `TENANT_ADMIN`, `MANAGER`
+```typescript
+@Injectable()
+export class UsersService {
+  constructor(
+    private readonly dsManager: TenantDataSourceManager,
+    private readonly tenantCtx: TenantContextService,
+  ) {}
 
-**Query Params:**
-| Param | Type | Description |
-|-------|------|-------------|
-| `role` | string | Filter theo role |
-| `isActive` | boolean | Filter active/inactive |
-| `search` | string | Tìm theo tên, email |
-| `page` / `limit` | number | Phân trang |
+  private async getRepo() {
+    const code = this.tenantCtx.getTenantCode()!;
+    const ds = await this.dsManager.getDataSource(code);
+    return ds.getRepository(User);
+  }
+}
+```
+
+### `GET /tenant/users`
+
+**Auth:** `@UseGuards(JwtAuthGuard)` — no RolesGuard
+
+**Query:** `PaginationDto` (`page`, `limit`, `search`)
+
+**Service:**
+```typescript
+async findAll(pagination: PaginationDto) {
+  const repo = await this.getRepo();
+  const [data, total] = await repo.findAndCount({
+    skip: pagination.skip,
+    take: pagination.limit,
+    order: { createdAt: 'DESC' },
+  });
+  return { data, total, page: pagination.page, limit: pagination.limit };
+}
+```
 
 **Response 200:**
 ```json
 {
   "data": [
-    {
-      "id": "uuid",
-      "name": "Jane Staff",
-      "email": "jane@acme.com",
-      "role": "STAFF",
-      "isActive": true,
-      "createdAt": "2026-01-01T00:00:00Z"
-    }
+    { "id": "uuid", "fullName": "Jane Staff", "email": "jane@acme.com",
+      "role": "STAFF", "status": "ACTIVE", "createdAt": "2026-01-01T00:00:00Z" }
   ],
-  "meta": { "total": 15, "page": 1, "limit": 20 }
+  "total": 15, "page": 1, "limit": 20
 }
 ```
 
 ---
 
-### Task #19 (cont.) — `POST /users`
+### `POST /tenant/users`
 
-**Auth:** JWT · Roles: `TENANT_ADMIN`
+**DTO:**
+```typescript
+export class CreateUserDto {
+  @ApiProperty() @IsString() fullName: string;
+  @ApiProperty() @IsEmail() email: string;
+  @ApiProperty() @IsString() @MinLength(8) password: string;
+  @ApiProperty({ enum: ['STAFF','WAREHOUSE','ACCOUNTANT','MANAGER','TENANT_ADMIN'] })
+  @IsString() role: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() phone?: string;
+}
+```
 
-**Request Body:**
-```json
-{
-  "name": "Jane Staff",
-  "email": "jane@acme.com",
-  "role": "STAFF",
-  "phone": "0901234567",
-  "password": "TempPass123!"
+**Service:**
+```typescript
+async create(dto: CreateUserDto) {
+  const repo = await this.getRepo();
+  const exists = await repo.findOne({ where: { email: dto.email } });
+  if (exists) throw new ConflictException('Email already exists');
+  const passwordHash = await bcrypt.hash(dto.password, 12);
+  const user = repo.create({ ...dto, passwordHash });
+  return repo.save(user);
+}
+```
+
+---
+
+### `PUT /tenant/users/:id`
+
+**DTO:**
+```typescript
+export class UpdateUserDto {
+  @ApiPropertyOptional() @IsString() @IsOptional() fullName?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() phone?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() role?: string;
 }
 ```
 
 **Business Rules:**
-1. Email unique trong tenant
-2. Role phải là một trong: `STAFF`, `WAREHOUSE`, `ACCOUNTANT`, `MANAGER`, `TENANT_ADMIN`
-3. `TENANT_ADMIN` chỉ tạo được khi không có user nào khác là `TENANT_ADMIN` (hoặc cho phép multiple — cần confirm)
-4. Gửi welcome email với credentials nếu `sendWelcomeEmail = true`
-5. Kiểm tra `maxUsers` config của tenant trước khi tạo
-
-**Response 201:** User object (không trả password)
-
-**Errors:**
-| Code | HTTP | Condition |
-|------|------|-----------|
-| `EMAIL_EXISTS` | 409 | Email đã tồn tại trong tenant |
-| `MAX_USERS_REACHED` | 403 | Đã đạt giới hạn user của tenant |
-| `INVALID_ROLE` | 422 | Role không hợp lệ |
+1. Email không thể sửa
+2. User không thể đổi role của chính mình
 
 ---
 
-### Task #19 (cont.) — `PUT /users/:id`
+### `PATCH /tenant/users/:id/status`
 
-**Auth:** JWT · Roles: `TENANT_ADMIN`
+**DTO:** `{ "status": "ACTIVE" | "INACTIVE" }`
 
-**Request Body:** (optional fields)
-```json
-{
-  "name": "Jane Updated",
-  "phone": "0909876543",
-  "role": "MANAGER"
+**Business Rules:**
+1. User không thể deactivate chính mình
+2. Deactivate → user không thể login nữa
+
+---
+
+## 2.3 Change Password
+
+### `PATCH /tenant/auth/change-password`
+
+**Auth:** `@UseGuards(JwtAuthGuard)`
+
+**DTO:**
+```typescript
+export class ChangePasswordDto {
+  @ApiProperty() @IsString() currentPassword: string;
+  @ApiProperty() @IsString() @MinLength(8) newPassword: string;
 }
 ```
 
-**Business Rules:**
-1. Không cho phép tự đổi role của chính mình
-2. Không cho phép sửa email (phải deactivate + tạo mới)
+**Service:**
+1. Lấy `userId` từ JWT (`@CurrentUser() user`)
+2. `getRepo()` → tìm user
+3. `bcrypt.compare(currentPassword, user.passwordHash)` — nếu sai: `UnauthorizedException`
+4. `bcrypt.hash(newPassword, 12)` → update `passwordHash`
 
 ---
 
-### Task #24 — `PATCH /users/:id/deactivate` & `/activate`
-
-**Auth:** JWT · Roles: `TENANT_ADMIN`
-
-**Business Rules:**
-1. Không thể deactivate chính mình
-2. Khi deactivate: invalidate refresh tokens của user đó
-3. User deactivated không thể login (trả `USER_INACTIVE`)
-
-**Response 200:** `{ "isActive": false }`
-
----
-
-### Task #20 — `POST /users/:id/assign-role`
-
-**Auth:** JWT · Roles: `TENANT_ADMIN`
-
-**Request Body:**
-```json
-{ "role": "MANAGER" }
-```
-
-**Business Rules:**
-1. Chỉ `TENANT_ADMIN` mới gán được role
-2. `TENANT_ADMIN` không thể hạ cấp chính mình xuống role khác (trừ khi có admin khác)
-3. Ghi audit log khi thay đổi role
-
-**Response 200:** User object với role mới
-
----
-
-### Task #21 — Seed Default Roles (run at provision time)
-
-Roles và permissions mặc định tạo ra khi provision tenant:
-
-| Role | Key Permissions |
-|------|----------------|
-| `TENANT_ADMIN` | Full access |
-| `MANAGER` | View all reports, approve discounts, view all data within branch |
-| `ACCOUNTANT` | Payments, AR/AP, financial reports; no product edit |
-| `WAREHOUSE` | Stock in/out/adjust/transfer, stocktaking; no financial data |
-| `STAFF` | Create orders, view products/customers, no cost price |
-
-**DB:** `roles`, `permissions`, `role_permissions` (trong tenant schema)
-
----
-
-## Database Schema
+## Database Schema (Tenant DB)
 
 ```sql
--- Platform DB (shared)
-CREATE TABLE users (  -- For SUPER_ADMIN only
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+CREATE TABLE users (
+  id            UUID PRIMARY KEY,
+  full_name     VARCHAR(255) NOT NULL,
   email         VARCHAR(255) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
-  role          VARCHAR(50) NOT NULL DEFAULT 'SUPER_ADMIN',
-  is_active     BOOLEAN NOT NULL DEFAULT true,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Tenant Schema (per tenant)
-CREATE TABLE users (
-  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name               VARCHAR(255) NOT NULL,
-  email              VARCHAR(255) NOT NULL UNIQUE,
-  password_hash      VARCHAR(255) NOT NULL,
-  phone              VARCHAR(20),
-  role               VARCHAR(50) NOT NULL,
-  is_active          BOOLEAN NOT NULL DEFAULT true,
-  two_factor_enabled BOOLEAN NOT NULL DEFAULT false,
-  failed_login_count INT NOT NULL DEFAULT 0,
-  locked_until       TIMESTAMPTZ,
-  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE refresh_tokens (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token_hash  VARCHAR(255) NOT NULL,
-  expires_at  TIMESTAMPTZ NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE TABLE two_factor_codes (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  code_hash   VARCHAR(255) NOT NULL,
-  expires_at  TIMESTAMPTZ NOT NULL,
-  used_at     TIMESTAMPTZ
-);
-
-CREATE TABLE login_attempts (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     UUID REFERENCES users(id),
-  email       VARCHAR(255),
-  ip_address  VARCHAR(45),
-  success     BOOLEAN NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  phone         VARCHAR(20),
+  role          ENUM('STAFF','WAREHOUSE','ACCOUNTANT','MANAGER','TENANT_ADMIN') NOT NULL,
+  status        ENUM('ACTIVE','INACTIVE') DEFAULT 'ACTIVE',
+  created_at    DATETIME,
+  updated_at    DATETIME,
+  deleted_at    DATETIME
 );
 ```
+
+---
+
+## Roles Summary
+
+| Role | Access Level |
+|------|-------------|
+| `TENANT_ADMIN` | Full access, user management |
+| `MANAGER` | View all reports, approve discounts |
+| `ACCOUNTANT` | Payments, AR/AP, financial reports; no product edit |
+| `WAREHOUSE` | Stock in/out/adjust; no financial data |
+| `STAFF` | Create orders, view products/customers; no cost price |
+
+> Role-based UI filtering is done on the frontend by reading `role` from JWT payload via `useAuth()`.
+
+---
+
+## Module Registration
+
+Add to `TenantAppModule`:
+```typescript
+// src/tenant-module/tenant-app.module.ts
+controllers: [TenantAuthController, ProductsController, UsersController],
+providers:   [TenantAuthService,    ProductsService,    UsersService],
+```
+
+## Notes
+
+- `synchronize: false` — user table requires a migration in each tenant schema
+- `@UseGuards(JwtAuthGuard)` on controller class covers all routes in tenant module
+- `TenantContextService.getTenantCode()` reads from `AsyncLocalStorage` populated by tenant middleware
+- 2FA, login attempt tracking, account lockout: future features not in current implementation

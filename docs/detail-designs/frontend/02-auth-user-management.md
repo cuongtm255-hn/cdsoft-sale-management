@@ -4,207 +4,238 @@
 
 ---
 
-## 2.1 Login Screen
+## Architecture Notes
+
+- Tenant pages: `src/tenant/pages/`
+- Platform auth: `src/platform/pages/Login.jsx`
+- Auth state: `useAuth()` from `@auth/AuthContext` — `{ tenantUser, tenantLogin, tenantLogout, platformUser, platformLogin, platformLogout }`
+- Token storage: `localStorage` (via `AuthContext`) — **not httpOnly cookie**
+- API: `tenantAuth` from `@api/tenant.api`, `platformAuth` from `@api/platform.api`
+- JWT payload decoded from token: `{ sub, email, role, tenantCode, userType: 'TENANT' }`
+
+---
+
+## 2.1 Tenant Login Screen
 
 ### Task: #17
 
-**Route:** `/login`  
-**Access:** Public (redirect đến dashboard nếu đã có valid token)
+**Route:** `/tenant/login`
+**File:** `src/tenant/pages/Login.jsx`
+**Access:** Public (redirect to dashboard if already authenticated)
 
 ### Layout
 ```
 ─────────────────────────
-      [App Logo]
-   "Sales Management"
+      "Tenant Portal"
 ─────────────────────────
-  Workspace (Tenant Slug)
-  Email
-  Password          [👁]
-  [Login Button]
-  "Forgot Password?"
+  Tenant Code  [BankOutlined icon]
+  Email        [UserOutlined icon]
+  Password     [LockOutlined icon] [👁]
+  [Sign In]
 ─────────────────────────
+```
+
+### Implementation
+
+```jsx
+import { Form, Input, Button, Card, Typography, message } from 'antd';
+import { UserOutlined, LockOutlined, BankOutlined } from '@ant-design/icons';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { useAuth } from '@auth/AuthContext';
+import { tenantAuth } from '@api/tenant.api';
+
+export default function TenantLoginPage() {
+  const { tenantLogin } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const [form] = Form.useForm();
+
+  const onFinish = async (values) => {
+    try {
+      const { data } = await tenantAuth.login(values);
+      tenantLogin(data.data?.accessToken || data.accessToken);
+      navigate(location.state?.from?.pathname || '/tenant/dashboard', { replace: true });
+    } catch {
+      message.error('Invalid credentials or tenant not found');
+    }
+  };
+
+  return (
+    <Form form={form} onFinish={onFinish} layout="vertical"
+          initialValues={{ tenantCode: searchParams.get('tenant') || '' }}>
+      <Form.Item name="tenantCode" rules={[{ required: true }]}>
+        <Input prefix={<BankOutlined />} placeholder="Tenant Code" size="large" />
+      </Form.Item>
+      <Form.Item name="email" rules={[{ required: true, type: 'email' }]}>
+        <Input prefix={<UserOutlined />} placeholder="Email" size="large" />
+      </Form.Item>
+      <Form.Item name="password" rules={[{ required: true }]}>
+        <Input.Password prefix={<LockOutlined />} placeholder="Password" size="large" />
+      </Form.Item>
+      <Form.Item>
+        <Button type="primary" htmlType="submit" size="large" block>Sign In</Button>
+      </Form.Item>
+    </Form>
+  );
+}
 ```
 
 ### Form Fields
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| Workspace | Text | ✅ | Chỉ `a-z0-9-`, min 3 ký tự; lưu vào localStorage sau login thành công |
-| Email | Email | ✅ | Valid email format |
-| Password | Password | ✅ | Min 8 ký tự |
+| Field | Name | Required | Notes |
+|-------|------|----------|-------|
+| Tenant Code | `tenantCode` | ✅ | Pre-filled from `?tenant=` query param |
+| Email | `email` | ✅ | Valid email format |
+| Password | `password` | ✅ | Input.Password |
 
 ### Flow
-1. User điền form → click "Login"
-2. `POST /auth/login { email, password, tenantSlug }`
-3. **Nếu success (không cần 2FA):** Lưu `accessToken` vào memory (không localStorage), `refreshToken` vào httpOnly cookie → redirect đến dashboard
-4. **Nếu `requiresTwoFactor = true`:** Lưu `twoFactorToken` tạm → chuyển sang màn hình 2FA
-5. **Nếu lỗi:** Hiển thị inline error dưới form
+1. User điền form → submit
+2. `tenantAuth.login({ tenantCode, email, password })`
+3. Success: `tenantLogin(accessToken)` → stores in localStorage → redirect to `/tenant/dashboard`
+4. Error: `message.error('Invalid credentials or tenant not found')`
 
-### Error Messages
-| Backend Code | User-facing message |
-|---|---|
-| `INVALID_CREDENTIALS` | "Email hoặc mật khẩu không đúng." |
-| `TENANT_SUSPENDED` | "Workspace tạm ngưng hoạt động. Liên hệ quản trị viên." |
-| `USER_INACTIVE` | "Tài khoản đã bị vô hiệu hóa." |
-| `ACCOUNT_LOCKED` | "Tài khoản bị khóa tạm thời. Thử lại sau 15 phút." |
-| `TENANT_NOT_FOUND` | "Workspace không tồn tại." |
-
-### States
-- Submit button: spinner + disabled khi đang gọi API
-- Password field: toggle show/hide
+> Note: 2FA is not implemented. Token stored in localStorage (not httpOnly cookie).
 
 ---
 
-## 2.2 Two-Factor Authentication Screen
+## 2.2 Platform Login Screen
 
-### Task: #18
+### Task: #17 (platform side)
 
-**Route:** `/login/2fa` (hoặc modal overlay trên màn login)  
-**Access:** Chỉ accessible sau khi login step 1 thành công và `requiresTwoFactor = true`
+**Route:** `/platform/login`
+**File:** `src/platform/pages/Login.jsx`
+
+```jsx
+import { platformAuth } from '@api/platform.api';
+import { useAuth } from '@auth/AuthContext';
+
+const { platformLogin } = useAuth();
+
+const onFinish = async (values) => {
+  const { data } = await platformAuth.login(values);
+  platformLogin(data.data?.accessToken || data.accessToken);
+  navigate('/platform/dashboard');
+};
+```
+
+---
+
+## 2.3 AuthContext
+
+**File:** `src/auth/AuthContext.jsx`
+
+```jsx
+// State shape
+const initialState = {
+  platformUser: null,  // decoded JWT payload for platform
+  tenantUser: null,    // decoded JWT payload for tenant
+};
+
+// Provided values
+{
+  platformUser, tenantUser,
+  platformLogin(token), tenantLogin(token),
+  platformLogout(), tenantLogout()
+}
+```
+
+- Token stored in `localStorage` under `PLATFORM_TOKEN_KEY` / `TENANT_TOKEN_KEY`
+- JWT payload auto-decoded with `JSON.parse(atob(token.split('.')[1]))`
+- `tenantUser.role` available for role-based UI rendering
+
+---
+
+## 2.4 User Management Screen
+
+### Tasks: #19, #20, #23, #24
+
+**Route:** `/tenant/users`
+**File:** `src/tenant/pages/Users.jsx`
 
 ### Layout
 ```
-─────────────────────────
-  "Two-Factor Verification"
-  "Enter the 6-digit code sent to your email"
-  [_ _ _ _ _ _]  OTP input
-  [Verify]
-  "Resend code" (enabled sau 60s)
-─────────────────────────
+[Header: "Users"]
+────────────────────────────────────────────────────
+| Name       | Email           | Role     | Status  |
+|------------|-----------------|----------|---------|
+| Jane Staff | jane@acme.com   | STAFF    | ACTIVE  |
+| John Mgr   | john@acme.com   | MANAGER  | ACTIVE  |
+────────────────────────────────────────────────────
 ```
 
-### Flow
-1. Auto-navigate tới màn này khi login trả `requiresTwoFactor`
-2. User nhập OTP 6 chữ số
-3. `POST /auth/verify-2fa { twoFactorToken, otp }`
-4. Success → lưu tokens → redirect dashboard
-5. Sai OTP → "Mã xác thực không đúng" (đếm số lần, sau 3 lần redirect về login)
+### Implementation
 
-### UX Details
-- OTP input: auto-advance khi gõ đủ 1 ô (6 ô riêng biệt hoặc 1 ô style OTP)
-- Countdown 60s cho nút "Resend code"
-- Resend → `POST /auth/login` lại để gửi OTP mới
+```jsx
+import { Tag } from 'antd';
+import PageHeader from '@shared/components/PageHeader';
+import DataTable from '@shared/components/DataTable';
+import { usePagination } from '@shared/hooks/useApi';
+import { tenantApi } from '@api/axios';
 
----
+const usersApi = { list: (params) => tenantApi.get('/tenant/users', { params }) };
 
-## 2.3 User List Screen
+export default function TenantUsers() {
+  const { fetch, loading, data, pagination, onTableChange } = usePagination(usersApi.list);
+  useEffect(() => { fetch(); }, []);
 
-### Task: #22
-
-**Route:** `/settings/users`  
-**Access:** `TENANT_ADMIN`
-
-### Layout
-```
-[Header: "User Management"]
-[Search input]  [Role filter]  [Status filter]  [+ Add User]
-──────────────────────────────────────────────────────────
-| Name       | Email          | Role     | Status   | Actions  |
-|------------|----------------|----------|----------|----------|
-| Jane Staff | jane@acme.com  | STAFF    | ● Active | Edit     |
-| Bob Ware.  | bob@acme.com   | WAREHOUSE| ● Active | Edit     |
-──────────────────────────────────────────────────────────
-[Pagination]
+  const columns = [
+    { title: 'Name', dataIndex: 'fullName' },
+    { title: 'Email', dataIndex: 'email' },
+    { title: 'Role', dataIndex: 'role', render: (v) => <Tag>{v}</Tag> },
+    { title: 'Status', dataIndex: 'status', render: (v) => <Tag color={v === 'ACTIVE' ? 'green' : 'red'}>{v}</Tag> },
+  ];
+  // ...
+}
 ```
 
-### Components
-- **UserTable:** Cột Name, Email, Role badge, Status badge, Actions dropdown (Edit, Deactivate/Activate)
-- **RoleBadge:** Màu theo role — ADMIN=purple, MANAGER=blue, STAFF=gray, WAREHOUSE=orange, ACCOUNTANT=green
-- **AddUserButton:** Mở `UserFormModal`
+### Create User Form
+Fields: `fullName`, `email`, `password`, `role` (Select), `phone`
 
-### States
-- Empty state: "No users yet. Add your first user."
-- Filter combination: search + role + status filter cộng dồn
+```jsx
+import { useApi } from '@shared/hooks/useApi';
 
-### API Integration
-- `GET /users?search=&role=&isActive=&page=&limit=` → populate table
-- Filter/search thay đổi → re-fetch (debounce 300ms cho search)
-
----
-
-## 2.4 Create / Edit User Form
-
-### Task: #23
-
-**Trigger:** "+ Add User" hoặc "Edit" trên hàng
-
-### Form Fields
-| Field | Create | Edit | Validation |
-|-------|--------|------|------------|
-| Full Name | ✅ | ✅ | Min 2 ký tự |
-| Email | ✅ | ❌ (read-only) | Valid email |
-| Role | ✅ | ✅ | Select từ danh sách |
-| Phone | ✅ | ✅ | Optional, format VN |
-| Password | ✅ | ❌ | Min 8, uppercase+number |
-| Send welcome email | ✅ | ❌ | Checkbox, default ON |
-
-**Edit mode:** Email hiển thị dạng text (không input), không có field Password
-
-### Role Dropdown Options
-- Staff (Nhân viên bán hàng)
-- Warehouse (Thủ kho)
-- Accountant (Kế toán)
-- Manager (Quản lý)
-- Admin (Quản trị viên)
-
-### Flow
-1. Fill form → click "Save"
-2. Create: `POST /users` · Edit: `PUT /users/:id`
-3. Success: đóng modal, refresh list, toast "User saved"
-4. Lỗi 409 (email exists): inline error "Email này đã được sử dụng"
-
----
-
-## 2.5 Deactivate / Activate User
-
-### Task: #24
-
-**Location:** Actions dropdown trong User Table
-
-**Deactivate flow:**
-1. Click "Deactivate" → Confirm Dialog "User will lose access immediately."
-2. `PATCH /users/:id/deactivate`
-3. Success: status badge → Inactive, action đổi thành "Activate"
-
-**Activate flow:**
-1. Click "Activate" → `PATCH /users/:id/activate` (không cần confirm)
-2. Success: status badge → Active
-
-### Edge Cases
-- Không hiển thị option Deactivate cho chính user đang login
-- Nếu chỉ còn 1 TENANT_ADMIN, ẩn/disable Deactivate của admin đó
-
----
-
-## 2.6 Assign Role (inline in Edit form)
-
-### Task: Task #23 (role field trong form)
-
-Role assignment được thực hiện thông qua field "Role" trong Edit User form — không có màn hình riêng.
-
-Khi save form với role mới khác role cũ: hiển thị confirm "Changing role from STAFF to MANAGER. Continue?"
-
----
-
-## Navigation Flow
-
-```
-/login
-  └─ Success → /dashboard
-  └─ 2FA required → /login/2fa → /dashboard
-
-/settings/users (User List)
-  └─ "+ Add User" → UserFormModal (create)
-  └─ "Edit" row → UserFormModal (edit)
-  └─ "Deactivate" row → ConfirmDialog → inline update
+const { execute: createUser, loading } = useApi(
+  (data) => tenantApi.post('/tenant/users', data),
+  { successMessage: 'User created', onSuccess: () => { fetch(); setModalOpen(false); } }
+);
 ```
 
 ---
 
-## Shared Components
+## 2.5 Change Password
+
+**Route:** `/tenant/profile` (or modal)
+
+```jsx
+const { execute: changePassword } = useApi(
+  (data) => tenantApi.patch('/tenant/auth/change-password', data),
+  { successMessage: 'Password changed successfully' }
+);
+```
+
+---
+
+## Shared Auth Components
 
 | Component | Mô tả |
 |-----------|-------|
-| `<RoleBadge role />` | Badge màu theo role |
-| `<OTPInput length={6} onChange />` | 6-digit OTP input |
-| `<UserFormModal userId? onSave />` | Modal dùng chung create/edit |
-| `<PasswordStrengthMeter value />` | Meter hiển thị độ mạnh password khi tạo |
+| `<ProtectedRoute>` | `src/auth/ProtectedRoute.jsx` — redirects if not authenticated |
+| `useAuth()` | Returns `{ tenantUser, platformUser, tenantLogin, ... }` |
+
+---
+
+## Route Guard Pattern
+
+```jsx
+// src/auth/ProtectedRoute.jsx
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from './AuthContext';
+
+export default function ProtectedRoute({ children, type = 'tenant' }) {
+  const { tenantUser, platformUser } = useAuth();
+  const location = useLocation();
+  const user = type === 'platform' ? platformUser : tenantUser;
+  if (!user) return <Navigate to={`/${type}/login`} state={{ from: location }} replace />;
+  return children;
+}
+```

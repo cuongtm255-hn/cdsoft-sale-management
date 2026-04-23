@@ -4,9 +4,19 @@
 
 ---
 
+## Architecture Notes
+
+- Module path: `src/tenant-module/loyalty/`
+- Guard: `@UseGuards(JwtAuthGuard)` on controller class — **no `RolesGuard`**
+- All routes prefixed with `tenant/loyalty`
+- Service uses `getRepo()` pattern via `TenantDataSourceManager` + `TenantContextService`
+- Register in `TenantAppModule.controllers[]` and `providers[]`
+
+---
+
 ## 9.1 Loyalty Configuration
 
-### Task #105 — `GET /loyalty/config` & `PUT /loyalty/config`
+### Task #105 — `GET /tenant/loyalty/config` & `PUT /tenant/loyalty/config`
 
 **Auth:** JWT · Roles: `TENANT_ADMIN`
 

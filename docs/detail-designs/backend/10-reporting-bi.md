@@ -4,9 +4,20 @@
 
 ---
 
+## Architecture Notes
+
+- Module path: `src/tenant-module/reports/`
+- Guard: `@UseGuards(JwtAuthGuard)` on controller class — **no `RolesGuard`**
+- All routes prefixed with `tenant/reports`
+- Service uses `getRepo()` + raw SQL/QueryBuilder via `TenantDataSourceManager` + `TenantContextService`
+- Register in `TenantAppModule.controllers[]` and `providers[]`
+- Reports are read-only aggregations — no mutations
+
+---
+
 ## 10.1 Sales Report
 
-### Task #111 — `GET /reports/sales`
+### Task #111 — `GET /tenant/reports/sales`
 
 **Auth:** JWT · Roles: `MANAGER`, `TENANT_ADMIN`
 

@@ -4,10 +4,23 @@
 
 ---
 
+## Architecture Notes
+
+- Tenant pages: `src/tenant/pages/`
+- Imports: `@shared/components/PageHeader`, `@shared/components/DataTable`, `@shared/hooks/useApi`, `@api/tenant.api`
+- API: `suppliersApi` from `@api/tenant.api` → `GET /tenant/suppliers`, `POST /tenant/suppliers`
+- Hook pattern:
+  ```jsx
+  const { fetch, loading, data, pagination, onTableChange } = usePagination(suppliersApi.list);
+  const { execute: createSupplier } = useApi(suppliersApi.create, { successMessage: 'Supplier created', onSuccess: () => fetch() });
+  ```
+
+---
+
 ## 5.1 Supplier List Screen
 
-**Route:** `/suppliers`  
-**Access:** `TENANT_ADMIN`, `MANAGER`, `ACCOUNTANT`, `WAREHOUSE`
+**Route:** `/tenant/suppliers`
+**Access:** Authenticated tenant users (role-based visibility in UI)
 
 ### Layout
 ```
@@ -31,7 +44,7 @@
 
 ## 5.2 Create / Edit Supplier Form
 
-**Route:** `/suppliers/new` · `/suppliers/:id/edit`  
+**Route:** `/tenant/suppliers/new` · `/tenant/suppliers/:id/edit`
 **Access:** `TENANT_ADMIN`, `MANAGER`
 
 ### Layout (tabs)
@@ -81,7 +94,7 @@ Dynamic list — thêm/xóa tài khoản:
 
 ## 5.3 Supplier Detail Screen
 
-**Route:** `/suppliers/:id`
+**Route:** `/tenant/suppliers/:id`
 
 ### Layout
 ```

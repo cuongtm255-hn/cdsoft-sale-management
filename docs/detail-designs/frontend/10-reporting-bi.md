@@ -4,12 +4,31 @@
 
 ---
 
+## Architecture Notes
+
+- Tenant pages: `src/tenant/pages/`
+- Imports: `@shared/components/PageHeader`, `@shared/components/DataTable`, `@shared/hooks/useApi`, `@api/tenant.api`
+- Add `reportsApi` to `@api/tenant.api`:
+  ```javascript
+  reportsApi = {
+    sales:     (params) => tenantApi.get('/tenant/reports/sales', { params }),
+    inventory: (params) => tenantApi.get('/tenant/reports/inventory', { params }),
+    finance:   (params) => tenantApi.get('/tenant/reports/finance', { params }),
+    kpi:       (params) => tenantApi.get('/tenant/reports/kpi', { params }),
+    commissions:(params)=> tenantApi.get('/tenant/reports/commissions', { params }),
+  }
+  ```
+- Charts: use Ant Design Charts (`@ant-design/charts`) or Recharts
+- Role-based access check via `useAuth().tenantUser.role` — hide from STAFF
+
+---
+
 ## 10.1 Sales Report Screen
 
 ### Task: #113
 
-**Route:** `/reports/sales`  
-**Access:** `MANAGER`, `TENANT_ADMIN`
+**Route:** `/tenant/reports/sales`
+**Access:** MANAGER, TENANT_ADMIN (check in UI via `tenantUser.role`)
 
 ### Layout
 ```
@@ -49,7 +68,7 @@ Top sản phẩm:
 
 ### Task: #116
 
-**Route:** `/reports/inventory`  
+**Route:** `/tenant/reports/inventory`
 **Access:** `MANAGER`, `WAREHOUSE`, `TENANT_ADMIN`
 
 ### Layout
@@ -93,7 +112,7 @@ Tabs: [Nhập-Xuất-Tồn] [Hàng tồn lâu] [Phân tích ABC]
 
 ### Task: #119
 
-**Route:** `/reports/finance`  
+**Route:** `/tenant/reports/finance`
 **Access:** `MANAGER`, `TENANT_ADMIN`
 
 ### Layout
@@ -143,7 +162,7 @@ Both tabs: nút "Xuất PDF" để in báo cáo tài chính
 
 ### Task: #123
 
-**Route:** `/reports/kpi`  
+**Route:** `/tenant/reports/kpi`
 **Access:** `MANAGER`, `TENANT_ADMIN`
 
 ### Layout
@@ -176,7 +195,7 @@ Danh sách đơn hàng trong kỳ
 
 ### Task: #124
 
-**Route:** `/reports/commissions`  
+**Route:** `/tenant/reports/commissions`
 **Access:** `MANAGER`, `TENANT_ADMIN`; STAFF chỉ xem của mình
 
 ### Layout

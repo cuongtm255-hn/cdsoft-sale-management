@@ -4,12 +4,33 @@
 
 ---
 
+## Architecture Notes
+
+- Tenant pages: `src/tenant/pages/`
+- Imports: `@shared/components/PageHeader`, `@shared/components/DataTable`, `@shared/hooks/useApi`, `@api/tenant.api`
+- API: `purchaseOrdersApi`, `salesOrdersApi` from `@api/tenant.api`:
+  ```javascript
+  // Purchase Orders
+  purchaseOrdersApi.list(params)    // GET /tenant/purchase-orders
+  purchaseOrdersApi.create(data)    // POST /tenant/purchase-orders
+  purchaseOrdersApi.confirm(id)     // PATCH /tenant/purchase-orders/:id/confirm
+  purchaseOrdersApi.receive(id)     // PATCH /tenant/purchase-orders/:id/receive
+  // Sales Orders
+  salesOrdersApi.list(params)       // GET /tenant/sales-orders
+  salesOrdersApi.create(data)       // POST /tenant/sales-orders
+  salesOrdersApi.confirm(id)        // PATCH /tenant/sales-orders/:id/confirm
+  salesOrdersApi.ship(id)           // PATCH /tenant/sales-orders/:id/ship
+  salesOrdersApi.complete(id)       // PATCH /tenant/sales-orders/:id/complete
+  ```
+
+---
+
 ## 7.1 Order List Screen
 
 ### Task: #71
 
-**Route:** `/orders`  
-**Access:** All roles (STAFF chỉ thấy đơn của mình, MANAGER+ thấy tất cả)
+**Route:** `/tenant/purchase-orders` · `/tenant/sales-orders`
+**Access:** All authenticated tenant users
 
 ### Layout
 ```
@@ -40,7 +61,7 @@
 
 ### Task: #75
 
-**Route:** `/orders/new`  
+**Route:** `/tenant/sales-orders/new`
 **Access:** `STAFF`, `MANAGER`, `TENANT_ADMIN`
 
 ### Layout
@@ -70,7 +91,7 @@ Tổng cộng:         85,550₫
 ### Feature: Auto Price Fill (Task #76)
 
 Khi chọn khách hàng + sản phẩm:
-- `GET /orders/price-preview?customerId=&productId=&unitId=` → trả suggested price
+- `GET /tenant/sales-orders/price-preview?customerId=&productId=&unitId=` → trả suggested price
 - Auto-fill `unitPrice` theo bảng giá phù hợp với nhóm KH
 - Nếu price được override thủ công: highlight màu vàng + tooltip "Giá tùy chỉnh (giá gốc: 10,000₫)"
 
@@ -92,15 +113,15 @@ Sau khi thêm items, tính tổng → kiểm tra credit:
 4. Error: inline error dưới ô voucher
 
 ### Flow
-1. "Lưu nháp" → `POST /orders { ...data }` → redirect đến `/orders/:id`
-2. "Xác nhận" → `POST /orders` + `PATCH .../confirm` → redirect đến order detail
+1. "Lưu nháp" → `salesOrdersApi.create(data)` → redirect đến `/tenant/sales-orders/:id`
+2. "Xác nhận" → `salesOrdersApi.create(data)` + `salesOrdersApi.confirm(id)` → redirect đến order detail
 3. Khi confirm: nếu `INSUFFICIENT_STOCK` → dialog liệt kê sản phẩm thiếu hàng
 
 ---
 
 ## 7.3 Order Detail Screen
 
-**Route:** `/orders/:id`
+**Route:** `/tenant/sales-orders/:id`
 
 ### Layout
 ```
@@ -151,7 +172,7 @@ Click "Xác nhận đơn":
 
 ### Task: #85
 
-**Route:** `/settings/promotions`  
+**Route:** `/tenant/settings/promotions`
 **Access:** `MANAGER`, `TENANT_ADMIN`
 
 ### Layout
@@ -204,7 +225,7 @@ Mã voucher: [SALE10    ]  [Áp dụng]
 
 ### Task: #89
 
-**Route:** `/orders/:id/return` hoặc Modal từ Order Detail
+**Route:** `/tenant/sales-orders/:id/return` hoặc Modal từ Order Detail
 
 ### Layout
 ```

@@ -4,11 +4,31 @@
 
 ---
 
+## Architecture Notes
+
+- Module path: `src/tenant-module/customers/`
+- Guard: `@UseGuards(JwtAuthGuard)` on controller class — **no `RolesGuard`**
+- Route prefix: `tenant/customers`
+- Service uses `getRepo()` pattern via `TenantDataSourceManager` + `TenantContextService`
+- Register in `TenantAppModule.controllers[]` and `providers[]`
+
+### Service Base Pattern
+
+```typescript
+private async getRepo() {
+  const code = this.tenantCtx.getTenantCode()!;
+  const ds = await this.dsManager.getDataSource(code);
+  return ds.getRepository(Customer);
+}
+```
+
+---
+
 ## 4.1 Customer List
 
-### Task #38 — `GET /customers`
+### Task #38 — `GET /tenant/customers`
 
-**Auth:** JWT · Roles: All
+**Auth:** `@UseGuards(JwtAuthGuard)`
 
 **Query Params:**
 | Param | Type | Description |
@@ -48,9 +68,9 @@
 
 ## 4.2 Create Customer
 
-### Task #40 — `POST /customers`
+### Task #40 — `POST /tenant/customers`
 
-**Auth:** JWT · Roles: `TENANT_ADMIN`, `MANAGER`, `STAFF`, `ACCOUNTANT`
+**Auth:** `@UseGuards(JwtAuthGuard)`
 
 **Request Body:**
 ```json
@@ -96,9 +116,9 @@
 
 ## 4.3 Update Customer
 
-### Task #41 — `PUT /customers/:id`
+### Task #41 — `PUT /tenant/customers/:id`
 
-**Auth:** JWT · Roles: `TENANT_ADMIN`, `MANAGER`, `STAFF`, `ACCOUNTANT`
+**Auth:** `@UseGuards(JwtAuthGuard)`
 
 **Request Body:** Tương tự POST, tất cả optional
 
@@ -113,7 +133,7 @@
 
 ## 4.4 Assign Sales Rep
 
-### Task #42 — Được thực hiện qua `PUT /customers/:id`
+### Task #42 — Được thực hiện qua `PUT /tenant/customers/:id`
 
 Field `salesRepId` trong body của PUT request.
 
@@ -126,9 +146,9 @@ Field `salesRepId` trong body của PUT request.
 
 ## 4.5 Customer Transaction History
 
-### Task #44 — `GET /customers/:id/transactions`
+### Task #44 — `GET /tenant/customers/:id/transactions`
 
-**Auth:** JWT · Roles: All
+**Auth:** `@UseGuards(JwtAuthGuard)`
 
 **Query Params:**
 | Param | Type | Description |
@@ -177,7 +197,7 @@ Field `salesRepId` trong body của PUT request.
 
 ## 4.6 Customer Detail
 
-### Task — `GET /customers/:id`
+### Task — `GET /tenant/customers/:id`
 
 **Response 200:** Customer object đầy đủ + summary stats
 

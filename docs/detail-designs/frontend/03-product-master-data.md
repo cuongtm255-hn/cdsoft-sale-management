@@ -4,12 +4,26 @@
 
 ---
 
+## Architecture Notes
+
+- Tenant pages: `src/tenant/pages/`
+- Imports: `@shared/components/PageHeader`, `@shared/components/DataTable`, `@shared/hooks/useApi`, `@api/tenant.api`
+- API functions: `productsApi`, `categoriesApi` from `@api/tenant.api`
+- Hook pattern:
+  ```jsx
+  const { fetch, loading, data, pagination, onTableChange } = usePagination(productsApi.list);
+  const { execute: createProduct } = useApi(productsApi.create, { successMessage: 'Product created', onSuccess: () => fetch() });
+  ```
+- Role check: `useAuth().tenantUser.role` for hiding cost price from STAFF
+
+---
+
 ## 3.1 Product List Screen
 
 ### Task: #26
 
-**Route:** `/products`  
-**Access:** All roles
+**Route:** `/tenant/products`
+**Access:** All authenticated tenant users
 
 ### Layout
 ```
@@ -46,7 +60,7 @@
 
 ### Task: #32, #33
 
-**Route:** `/products/new` · `/products/:id/edit`
+**Route:** `/tenant/products/new` · `/tenant/products/:id/edit`
 
 ### Layout (tabs)
 ```
@@ -116,7 +130,7 @@ Hiển thị widget: "Tồn kho hiện tại: 240 Chai" (read-only, lấy từ A
 1. Validate toàn bộ 4 tabs
 2. Nếu có lỗi validation → scroll đến tab đầu tiên có lỗi, highlight field
 3. Submit → loading state trên Save button
-4. Success: redirect về `/products/:id` (detail view) hoặc về list
+4. Success: redirect về `/tenant/products/:id` (detail view) hoặc về list
 5. Lỗi 409 SKU/Barcode: scroll về Tab 1, inline error dưới field tương ứng
 
 ---
@@ -140,8 +154,8 @@ Hiển thị widget: "Tồn kho hiện tại: 240 Chai" (read-only, lấy từ A
 
 ### Task: #37
 
-**Route:** `/settings/categories`  
-**Access:** `TENANT_ADMIN`, `MANAGER`
+**Route:** `/tenant/settings/categories`
+**Access:** Authenticated tenant users (role check in UI)
 
 ### Layout
 ```
@@ -174,12 +188,12 @@ Hiển thị widget: "Tồn kho hiện tại: 240 Chai" (read-only, lấy từ A
 ## Navigation Flow
 
 ```
-/products (List)
-  └─ "+ Add Product" → /products/new
-  └─ Click row / "Edit" → /products/:id/edit
+/tenant/products (List)
+  └─ "+ Add Product" → /tenant/products/new
+  └─ Click row / "Edit" → /tenant/products/:id/edit
   └─ "Deactivate" → Confirm Dialog → inline update
 
-/settings/categories
+/tenant/settings/categories
   └─ Inline tree editing
 ```
 

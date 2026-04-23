@@ -4,6 +4,18 @@
 
 ---
 
+## Architecture Notes
+
+- Module path: `src/tenant-module/invoices/`, `src/tenant-module/payments/`
+- Guard: `@UseGuards(JwtAuthGuard)` on controller class — **no `RolesGuard`**
+- Route prefixes: `tenant/invoices`, `tenant/payments` (as defined in `tenant.api.js`)
+- Service uses `getRepo()` pattern via `TenantDataSourceManager` + `TenantContextService`
+- Register in `TenantAppModule.controllers[]` and `providers[]`
+- Actual API routes (from `tenant.api.js`):
+  - `GET /tenant/invoices` (list), `POST /tenant/payments` (record payment)
+
+---
+
 ## 8.1 Generate Invoice
 
 ### Task #90 — Auto-generate Invoice Job
@@ -22,7 +34,7 @@
 
 ---
 
-### Task #91 — `GET /invoices/:id`
+### Task #91 — `GET /tenant/invoices/:id`
 
 **Auth:** JWT · Roles: All
 
