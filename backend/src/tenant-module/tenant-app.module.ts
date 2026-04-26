@@ -13,6 +13,9 @@ import { CustomersController } from './customers/customers.controller';
 import { CustomersService } from './customers/customers.service';
 import { SuppliersController } from './suppliers/suppliers.controller';
 import { SuppliersService } from './suppliers/suppliers.service';
+import { InventoryController } from './inventory/inventory.controller';
+import { WarehousesController } from './inventory/warehouses.controller';
+import { InventoryService } from './inventory/inventory.service';
 
 @Module({
   imports: [
@@ -24,7 +27,7 @@ import { SuppliersService } from './suppliers/suppliers.service';
       inject: [ConfigService],
     }),
   ],
-  controllers: [TenantAuthController, ProductsController, UsersController, CategoriesController, CustomersController, SuppliersController],
-  providers: [TenantAuthService, ProductsService, UsersService, CategoriesService, CustomersService, SuppliersService],
+  controllers: [TenantAuthController, ProductsController, UsersController, CategoriesController, CustomersController, SuppliersController, InventoryController, WarehousesController],
+  providers: [TenantAuthService, ProductsService, UsersService, CategoriesService, CustomersService, SuppliersService, InventoryService],
 })
 export class TenantAppModule {}
