@@ -40,7 +40,10 @@ export const customersApi = {
 
 export const suppliersApi = {
   list: (params) => tenantApi.get('/tenant/suppliers', { params }),
+  get: (id) => tenantApi.get(`/tenant/suppliers/${id}`),
   create: (data) => tenantApi.post('/tenant/suppliers', data),
+  update: (id, data) => tenantApi.put(`/tenant/suppliers/${id}`, data),
+  remove: (id) => tenantApi.delete(`/tenant/suppliers/${id}`),
 };
 
 export const inventoryApi = {

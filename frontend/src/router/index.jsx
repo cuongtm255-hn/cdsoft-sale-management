@@ -20,6 +20,8 @@ import Customers from '@tenant/pages/Customers';
 import CustomerDetail from '@tenant/pages/CustomerDetail';
 import CustomerForm from '@tenant/pages/CustomerForm';
 import Suppliers from '@tenant/pages/Suppliers';
+import SupplierDetail from '@tenant/pages/SupplierDetail';
+import SupplierForm from '@tenant/pages/SupplierForm';
 import Inventory from '@tenant/pages/Inventory';
 import PurchaseOrders from '@tenant/pages/PurchaseOrders';
 import SalesOrders from '@tenant/pages/SalesOrders';
@@ -67,6 +69,9 @@ export default function AppRouter() {
         <Route path="customers/:id" element={<CustomerDetail />} />
         <Route path="customers/:id/edit" element={<CustomerForm />} />
         <Route path="suppliers" element={<Suppliers />} />
+        <Route path="suppliers/new" element={<SupplierForm />} />
+        <Route path="suppliers/:id" element={<SupplierDetail />} />
+        <Route path="suppliers/:id/edit" element={<SupplierForm />} />
         <Route path="inventory" element={<Inventory />} />
         <Route path="purchase-orders" element={<PurchaseOrders />} />
         <Route path="sales-orders" element={<SalesOrders />} />
