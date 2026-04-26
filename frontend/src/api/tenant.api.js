@@ -18,12 +18,16 @@ export const productsApi = {
   get: (id) => tenantApi.get(`/tenant/products/${id}`),
   create: (data) => tenantApi.post('/tenant/products', data),
   update: (id, data) => tenantApi.put(`/tenant/products/${id}`, data),
+  toggleActive: (id) => tenantApi.patch(`/tenant/products/${id}/toggle-active`),
   remove: (id) => tenantApi.delete(`/tenant/products/${id}`),
 };
 
 export const categoriesApi = {
-  list: () => tenantApi.get('/tenant/categories'),
+  tree: () => tenantApi.get('/tenant/categories'),
+  flat: () => tenantApi.get('/tenant/categories/flat'),
   create: (data) => tenantApi.post('/tenant/categories', data),
+  update: (id, data) => tenantApi.put(`/tenant/categories/${id}`, data),
+  remove: (id) => tenantApi.delete(`/tenant/categories/${id}`),
 };
 
 export const customersApi = {

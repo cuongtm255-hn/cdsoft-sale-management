@@ -14,6 +14,7 @@ import TenantLayout from '@tenant/layout/TenantLayout';
 import TenantLoginPage from '@tenant/pages/Login';
 import TenantDashboard from '@tenant/pages/Dashboard';
 import Products from '@tenant/pages/Products';
+import ProductForm from '@tenant/pages/ProductForm';
 import Categories from '@tenant/pages/Categories';
 import Customers from '@tenant/pages/Customers';
 import Suppliers from '@tenant/pages/Suppliers';
@@ -56,6 +57,8 @@ export default function AppRouter() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<TenantDashboard />} />
         <Route path="products" element={<Products />} />
+        <Route path="products/new" element={<ProductForm />} />
+        <Route path="products/:id/edit" element={<ProductForm />} />
         <Route path="categories" element={<Categories />} />
         <Route path="customers" element={<Customers />} />
         <Route path="suppliers" element={<Suppliers />} />
