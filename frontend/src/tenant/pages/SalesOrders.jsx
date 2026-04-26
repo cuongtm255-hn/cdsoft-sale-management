@@ -1,41 +1,158 @@
-import { useEffect } from 'react';
-import { Button, Tag, Space } from 'antd';
+import { useEffect, useState, useCallback } from 'react';
+import { Button, Space, Input, Select, DatePicker, Typography } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
+import dayjs from 'dayjs';
 import PageHeader from '@shared/components/PageHeader';
 import DataTable from '@shared/components/DataTable';
-import { usePagination, useApi } from '@shared/hooks/useApi';
+import OrderStatusBadge from '@shared/components/OrderStatusBadge';
+import { usePagination } from '@shared/hooks/useApi';
 import { salesOrdersApi } from '@api/tenant.api';
 
-const statusColor = { DRAFT: 'default', CONFIRMED: 'blue', SHIPPED: 'orange', COMPLETED: 'green', CANCELLED: 'red' };
+const fmt = (v) => Number(v || 0).toLocaleString('vi-VN') + '₫';
+
+const STATUS_OPTIONS = [
+  { label: 'Tất cả', value: undefined },
+  { label: 'Nháp', value: 'DRAFT' },
+  { label: 'Đã xác nhận', value: 'CONFIRMED' },
+  { label: 'Đang giao', value: 'DELIVERING' },
+  { label: 'Đã giao', value: 'DELIVERED' },
+  { label: 'Đã hủy', value: 'CANCELLED' },
+  { label: 'Trả 1 phần', value: 'PARTIALLY_RETURNED' },
+];
 
 export default function SalesOrders() {
-  const { fetch, loading, data, pagination, onTableChange } = usePagination(salesOrdersApi.list);
-  const { execute: confirm } = useApi(salesOrdersApi.confirm, { onSuccess: fetch });
-  const { execute: ship } = useApi(salesOrdersApi.ship, { onSuccess: fetch });
-  const { execute: complete } = useApi(salesOrdersApi.complete, { onSuccess: fetch });
+  const navigate = useNavigate();
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState(undefined);
+  const [dateRange, setDateRange] = useState(null);
 
-  useEffect(() => { fetch(); }, []);
+  const { fetch, loading, data, pagination, onTableChange } = usePagination(salesOrdersApi.list);
+
+  const doFetch = useCallback(() => {
+    fetch({
+      search: search || undefined,
+      status,
+      from: dateRange?.[0]?.format('YYYY-MM-DD'),
+      to: dateRange?.[1]?.format('YYYY-MM-DD'),
+    });
+  }, [fetch, search, status, dateRange]);
+
+  useEffect(() => { doFetch(); }, [status, dateRange]);
 
   const columns = [
-    { title: 'Order #', dataIndex: 'orderNumber' },
-    { title: 'Customer', dataIndex: ['customer', 'name'] },
-    { title: 'Total', dataIndex: 'totalAmount', render: (v) => `$${v}` },
-    { title: 'Status', dataIndex: 'status', render: (v) => <Tag color={statusColor[v]}>{v}</Tag> },
-    { title: 'Date', dataIndex: 'createdAt', render: (v) => new Date(v).toLocaleDateString() },
     {
-      title: 'Actions', render: (_, row) => (
-        <Space size="small">
-          {row.status === 'DRAFT' && <Button size="small" onClick={() => confirm(row.id)}>Confirm</Button>}
-          {row.status === 'CONFIRMED' && <Button size="small" onClick={() => ship(row.id)}>Ship</Button>}
-          {row.status === 'SHIPPED' && <Button size="small" type="primary" onClick={() => complete(row.id)}>Complete</Button>}
-        </Space>
+      title: 'Mã đơn',
+      dataIndex: 'code',
+      key: 'code',
+      width: 140,
+      render: (v, row) => (
+        <Button type="link" style={{ padding: 0, fontWeight: 600 }} onClick={() => navigate(`/tenant/sales-orders/${row.id}`)}>
+          {v}
+        </Button>
       ),
+    },
+    {
+      title: 'Khách hàng',
+      key: 'customer',
+      render: (_, row) => (
+        <div>
+          <div style={{ fontWeight: 500 }}>{row.customer?.name ?? '—'}</div>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.customer?.code}</Typography.Text>
+        </div>
+      ),
+    },
+    {
+      title: 'Tổng tiền',
+      dataIndex: 'totalAmount',
+      key: 'total',
+      width: 140,
+      render: (v) => <Typography.Text strong>{fmt(v)}</Typography.Text>,
+    },
+    {
+      title: 'Đã TT',
+      dataIndex: 'paidAmount',
+      key: 'paid',
+      width: 120,
+      render: (v) => fmt(v),
+    },
+    {
+      title: 'Còn nợ',
+      key: 'debt',
+      width: 120,
+      render: (_, row) => {
+        const debt = (row.totalAmount ?? 0) - (row.paidAmount ?? 0);
+        return debt > 0 ? (
+          <Typography.Text type="danger">{fmt(debt)}</Typography.Text>
+        ) : <Typography.Text type="secondary">0₫</Typography.Text>;
+      },
+    },
+    {
+      title: 'NV phụ trách',
+      key: 'salesRep',
+      width: 130,
+      render: (_, row) => row.salesRep?.name ?? '—',
+    },
+    {
+      title: 'Trạng thái',
+      dataIndex: 'status',
+      key: 'status',
+      width: 140,
+      render: (v) => <OrderStatusBadge status={v} />,
+    },
+    {
+      title: 'Ngày tạo',
+      dataIndex: 'createdAt',
+      key: 'date',
+      width: 110,
+      render: (v) => dayjs(v).format('DD/MM/YYYY'),
     },
   ];
 
   return (
     <div>
-      <PageHeader title="Sales Orders" />
-      <DataTable columns={columns} dataSource={data} loading={loading} pagination={pagination} onChange={onTableChange} />
+      <PageHeader
+        title="Đơn hàng bán"
+        extra={
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/tenant/sales-orders/new')}>
+            Tạo đơn hàng
+          </Button>
+        }
+      />
+
+      <Space style={{ marginBottom: 16 }} wrap>
+        <Input.Search
+          placeholder="Tìm mã đơn hàng"
+          style={{ width: 220 }}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onSearch={doFetch}
+          allowClear
+        />
+        <Select
+          placeholder="Trạng thái"
+          options={STATUS_OPTIONS}
+          style={{ width: 160 }}
+          value={status}
+          onChange={setStatus}
+          allowClear
+        />
+        <DatePicker.RangePicker
+          format="DD/MM/YYYY"
+          value={dateRange}
+          onChange={setDateRange}
+          placeholder={['Từ ngày', 'Đến ngày']}
+        />
+      </Space>
+
+      <DataTable
+        columns={columns}
+        dataSource={data}
+        loading={loading}
+        pagination={pagination}
+        onChange={onTableChange}
+        rowKey="id"
+      />
     </div>
   );
 }

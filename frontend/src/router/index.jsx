@@ -35,6 +35,10 @@ import TransferReceivePage from '@tenant/pages/TransferReceivePage';
 import StocktakingPage from '@tenant/pages/StocktakingPage';
 import PurchaseOrders from '@tenant/pages/PurchaseOrders';
 import SalesOrders from '@tenant/pages/SalesOrders';
+import SalesOrderForm from '@tenant/pages/SalesOrderForm';
+import SalesOrderDetail from '@tenant/pages/SalesOrderDetail';
+import SalesOrderReturn from '@tenant/pages/SalesOrderReturn';
+import Promotions from '@tenant/pages/Promotions';
 import Payments from '@tenant/pages/Payments';
 import TenantUsers from '@tenant/pages/Users';
 
@@ -98,6 +102,10 @@ export default function AppRouter() {
 
         <Route path="purchase-orders" element={<PurchaseOrders />} />
         <Route path="sales-orders" element={<SalesOrders />} />
+        <Route path="sales-orders/new" element={<SalesOrderForm />} />
+        <Route path="sales-orders/:id" element={<SalesOrderDetail />} />
+        <Route path="sales-orders/:id/return" element={<SalesOrderReturn />} />
+        <Route path="settings/promotions" element={<Promotions />} />
         <Route path="payments" element={<Payments />} />
         <Route path="users" element={<TenantUsers />} />
       </Route>

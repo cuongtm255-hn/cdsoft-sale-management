@@ -89,17 +89,37 @@ export const inventoryApi = {
 
 export const purchaseOrdersApi = {
   list: (params) => tenantApi.get('/tenant/purchase-orders', { params }),
+  get: (id) => tenantApi.get(`/tenant/purchase-orders/${id}`),
   create: (data) => tenantApi.post('/tenant/purchase-orders', data),
   confirm: (id) => tenantApi.patch(`/tenant/purchase-orders/${id}/confirm`),
   receive: (id) => tenantApi.patch(`/tenant/purchase-orders/${id}/receive`),
+  cancel: (id, data) => tenantApi.patch(`/tenant/purchase-orders/${id}/cancel`, data),
 };
 
 export const salesOrdersApi = {
   list: (params) => tenantApi.get('/tenant/sales-orders', { params }),
+  get: (id) => tenantApi.get(`/tenant/sales-orders/${id}`),
   create: (data) => tenantApi.post('/tenant/sales-orders', data),
   confirm: (id) => tenantApi.patch(`/tenant/sales-orders/${id}/confirm`),
   ship: (id) => tenantApi.patch(`/tenant/sales-orders/${id}/ship`),
   complete: (id) => tenantApi.patch(`/tenant/sales-orders/${id}/complete`),
+  cancel: (id, data) => tenantApi.patch(`/tenant/sales-orders/${id}/cancel`, data),
+};
+
+export const returnsApi = {
+  create: (data) => tenantApi.post('/tenant/returns', data),
+};
+
+export const vouchersApi = {
+  list: () => tenantApi.get('/tenant/vouchers'),
+  create: (data) => tenantApi.post('/tenant/vouchers', data),
+  validate: (data) => tenantApi.post('/tenant/vouchers/validate', data),
+};
+
+export const promotionsApi = {
+  list: (params) => tenantApi.get('/tenant/promotions', { params }),
+  create: (data) => tenantApi.post('/tenant/promotions', data),
+  update: (id, data) => tenantApi.patch(`/tenant/promotions/${id}`, data),
 };
 
 export const paymentsApi = {
