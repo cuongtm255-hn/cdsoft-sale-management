@@ -2,6 +2,15 @@ import { tenantApi } from './axios';
 
 export const tenantAuth = {
   login: (data) => tenantApi.post('/tenant/auth/login', data),
+  changePassword: (data) => tenantApi.patch('/tenant/auth/change-password', data),
+};
+
+export const usersApi = {
+  list: (params) => tenantApi.get('/tenant/users', { params }),
+  create: (data) => tenantApi.post('/tenant/users', data),
+  update: (id, data) => tenantApi.put(`/tenant/users/${id}`, data),
+  updateStatus: (id, data) => tenantApi.patch(`/tenant/users/${id}/status`, data),
+  changePassword: (data) => tenantApi.patch('/tenant/auth/change-password', data),
 };
 
 export const productsApi = {

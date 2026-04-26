@@ -1,27 +1,24 @@
-import { Injectable, UnauthorizedException, ForbiddenException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { DataSource } from 'typeorm';
 import { TenantLoginDto } from './dto/tenant-login.dto';
 import { TenantDataSourceManager } from '../../tenant/tenant-datasource.manager';
-
-interface TenantUser {
-  id: string;
-  email: string;
-  role: string;
-  status: 'ACTIVE' | 'INACTIVE' | 'LOCKED';
-  passwordHash: string;
-}
+import { TenantContextService } from '../../tenant/tenant-context.service';
+import { User } from '../users/entities/user.entity';
+import { ChangePasswordDto } from '../users/dto/user.dto';
 
 @Injectable()
 export class TenantAuthService {
   constructor(
     private readonly jwtService: JwtService,
     private readonly dsManager: TenantDataSourceManager,
+    private readonly tenantCtx: TenantContextService,
   ) {}
 
   async login(dto: TenantLoginDto) {
     const ds = await this.dsManager.getDataSource(dto.tenantCode);
-    const user = await this.findTenantUser(ds, dto.email);
+    const user = await this.findUserWithPassword(ds, dto.email);
 
     if (!user) throw new UnauthorizedException('Invalid credentials');
     if (user.status !== 'ACTIVE') throw new ForbiddenException('Account is inactive');
@@ -43,9 +40,34 @@ export class TenantAuthService {
     };
   }
 
-  private async findTenantUser(ds: unknown, email: string): Promise<TenantUser | null> {
-    // TODO: query tenant DB users table
-    void ds; void email;
-    return null;
+  async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
+    const tenantCode = this.tenantCtx.getTenantCode();
+    if (!tenantCode) throw new ForbiddenException('Tenant context missing');
+
+    const ds = await this.dsManager.getDataSource(tenantCode);
+    const user = await ds
+      .getRepository(User)
+      .createQueryBuilder('u')
+      .addSelect('u.passwordHash')
+      .where('u.id = :id', { id: userId })
+      .getOne();
+
+    if (!user) throw new NotFoundException('User not found');
+
+    const valid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
+    if (!valid) throw new UnauthorizedException('Current password is incorrect');
+
+    user.passwordHash = await bcrypt.hash(dto.newPassword, 12);
+    await ds.getRepository(User).save(user);
+  }
+
+  private async findUserWithPassword(ds: DataSource, email: string): Promise<User | null> {
+    return ds
+      .getRepository(User)
+      .createQueryBuilder('u')
+      .addSelect('u.passwordHash')
+      .where('u.email = :email', { email })
+      .andWhere('u.deletedAt IS NULL')
+      .getOne();
   }
 }

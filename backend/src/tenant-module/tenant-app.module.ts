@@ -5,6 +5,8 @@ import { TenantAuthController } from './auth/tenant-auth.controller';
 import { TenantAuthService } from './auth/tenant-auth.service';
 import { ProductsController } from './products/products.controller';
 import { ProductsService } from './products/products.service';
+import { UsersController } from './users/users.controller';
+import { UsersService } from './users/users.service';
 
 @Module({
   imports: [
@@ -16,7 +18,7 @@ import { ProductsService } from './products/products.service';
       inject: [ConfigService],
     }),
   ],
-  controllers: [TenantAuthController, ProductsController],
-  providers: [TenantAuthService, ProductsService],
+  controllers: [TenantAuthController, ProductsController, UsersController],
+  providers: [TenantAuthService, ProductsService, UsersService],
 })
 export class TenantAppModule {}
