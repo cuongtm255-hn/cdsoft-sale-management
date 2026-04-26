@@ -151,6 +151,16 @@ export const cashApi = {
   createReceipt: (data) => tenantApi.post('/tenant/cash-receipts', data),
 };
 
+export const loyaltyApi = {
+  getConfig: () => tenantApi.get('/tenant/loyalty/config'),
+  updateConfig: (data) => tenantApi.put('/tenant/loyalty/config', data),
+  getCustomerLoyalty: (id) => tenantApi.get(`/tenant/loyalty/customers/${id}/points`),
+  redeemPreview: (data) => tenantApi.post('/tenant/loyalty/redeem-preview', data),
+  earn: (data) => tenantApi.post('/tenant/loyalty/earn', data),
+  adjust: (data) => tenantApi.post('/tenant/loyalty/adjust', data),
+  transactions: (params) => tenantApi.get('/tenant/loyalty/transactions', { params }),
+};
+
 export const dashboardApi = {
   stats: () => tenantApi.get('/tenant/dashboard/stats'),
 };

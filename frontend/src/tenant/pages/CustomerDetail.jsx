@@ -7,7 +7,10 @@ import {
 import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import PageHeader from '@shared/components/PageHeader';
-import { customersApi } from '@api/tenant.api';
+import TierBadge from '@shared/components/TierBadge';
+import TierProgressBar from '@shared/components/TierProgressBar';
+import LoyaltyTransactionsList from '@shared/components/LoyaltyTransactionsList';
+import { customersApi, loyaltyApi } from '@api/tenant.api';
 
 const { RangePicker } = DatePicker;
 
@@ -203,6 +206,73 @@ function TransactionTab({ customerId }) {
   );
 }
 
+function LoyaltyTab({ customerId, customer }) {
+  const [loyalty, setLoyalty] = useState(null);
+  const [config, setConfig] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      loyaltyApi.getCustomerLoyalty(customerId),
+      loyaltyApi.getConfig(),
+    ]).then(([lr, cr]) => {
+      setLoyalty(lr.data?.data ?? lr.data);
+      setConfig(cr.data?.data ?? cr.data);
+    }).finally(() => setLoading(false));
+  }, [customerId]);
+
+  if (loading) return <Spin size="small" style={{ margin: 16 }} />;
+  if (!config?.isEnabled) {
+    return <Typography.Text type="secondary">Chương trình tích điểm chưa được kích hoạt.</Typography.Text>;
+  }
+
+  return (
+    <div>
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Col span={8}>
+          <Card size="small">
+            <Statistic
+              title="Điểm hiện tại"
+              value={Number(loyalty?.currentPoints ?? 0).toLocaleString()}
+              suffix="điểm"
+            />
+            <div style={{ marginTop: 4 }}>
+              <TierBadge tier={customer.memberTier} showPoints={false} />
+            </div>
+          </Card>
+        </Col>
+        {loyalty?.pointsExpiringSoon && (
+          <Col span={8}>
+            <Card size="small" style={{ borderColor: '#faad14' }}>
+              <Statistic
+                title="Sắp hết hạn"
+                value={Number(loyalty.pointsExpiringSoon.amount).toLocaleString()}
+                suffix="điểm"
+                valueStyle={{ color: '#d46b08' }}
+              />
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Hết hạn: {dayjs(loyalty.pointsExpiringSoon.expiresAt).format('DD/MM/YYYY')}
+              </Typography.Text>
+            </Card>
+          </Col>
+        )}
+      </Row>
+
+      {config?.tiers?.length > 0 && (
+        <div style={{ marginBottom: 16, maxWidth: 320 }}>
+          <TierProgressBar
+            currentPoints={loyalty?.currentPoints ?? 0}
+            tiers={config.tiers}
+          />
+        </div>
+      )}
+
+      <Divider orientation="left" plain>Lịch sử điểm</Divider>
+      <LoyaltyTransactionsList customerId={customerId} />
+    </div>
+  );
+}
+
 function PaymentTab({ customerId }) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
@@ -290,6 +360,11 @@ export default function CustomerDetail() {
       key: 'payments',
       label: 'Lịch sử thanh toán',
       children: <PaymentTab customerId={id} />,
+    },
+    {
+      key: 'loyalty',
+      label: '🏅 Tích điểm',
+      children: <LoyaltyTab customerId={id} customer={customer} />,
     },
   ];
 
