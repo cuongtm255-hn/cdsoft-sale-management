@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import appConfig from './config/app.config';
@@ -9,6 +9,7 @@ import { PlatformModule } from './platform/platform.module';
 import { TenantContextModule } from './tenant/tenant.module';
 import { TenantAppModule } from './tenant-module/tenant-app.module';
 import { DatabaseInitModule } from './database/database-init.module';
+import { TenantContextMiddleware } from './tenant/tenant-context.middleware';
 
 @Module({
   imports: [
@@ -40,4 +41,8 @@ import { DatabaseInitModule } from './database/database-init.module';
     TenantAppModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(TenantContextMiddleware).forRoutes('*');
+  }
+}

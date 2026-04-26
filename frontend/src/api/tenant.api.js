@@ -46,11 +46,45 @@ export const suppliersApi = {
   remove: (id) => tenantApi.delete(`/tenant/suppliers/${id}`),
 };
 
+export const warehousesApi = {
+  list: () => tenantApi.get('/tenant/warehouses'),
+  create: (data) => tenantApi.post('/tenant/warehouses', data),
+  update: (id, data) => tenantApi.put(`/tenant/warehouses/${id}`, data),
+};
+
 export const inventoryApi = {
+  // Inventory balance / overview
   transactions: (params) => tenantApi.get('/tenant/inventory/transactions', { params }),
+  productStock: (productId, warehouseId) =>
+    tenantApi.get('/tenant/inventory/product-stock', { params: { productId, warehouseId } }),
+  productTransactions: (productId, warehouseId) =>
+    tenantApi.get('/tenant/inventory/product-transactions', { params: { productId, warehouseId } }),
+
+  // Stock receipts (nhập kho)
+  getReceipts: (params) => tenantApi.get('/tenant/inventory/stock-receipts', { params }),
+  getReceipt: (id) => tenantApi.get(`/tenant/inventory/stock-receipts/${id}`),
   stockIn: (data) => tenantApi.post('/tenant/inventory/stock-in', data),
+  confirmReceipt: (id, data) => tenantApi.patch(`/tenant/inventory/stock-receipts/${id}/confirm`, data),
+  cancelReceipt: (id) => tenantApi.patch(`/tenant/inventory/stock-receipts/${id}/cancel`),
+
+  // Stock out (xuất kho)
   stockOut: (data) => tenantApi.post('/tenant/inventory/stock-out', data),
+
+  // Stock adjustment (điều chỉnh kho)
   adjust: (data) => tenantApi.post('/tenant/inventory/adjust', data),
+
+  // Stock transfers (điều chuyển kho)
+  getTransfers: (params) => tenantApi.get('/tenant/inventory/transfers', { params }),
+  getTransfer: (id) => tenantApi.get(`/tenant/inventory/transfers/${id}`),
+  createTransfer: (data) => tenantApi.post('/tenant/inventory/transfers', data),
+  dispatchTransfer: (id) => tenantApi.patch(`/tenant/inventory/transfers/${id}/dispatch`),
+  receiveTransfer: (id, data) => tenantApi.patch(`/tenant/inventory/transfers/${id}/receive`, data),
+
+  // Stocktaking (kiểm kê kho)
+  getStocktakings: (params) => tenantApi.get('/tenant/inventory/stocktaking', { params }),
+  getStocktaking: (id) => tenantApi.get(`/tenant/inventory/stocktaking/${id}`),
+  createStocktaking: (data) => tenantApi.post('/tenant/inventory/stocktaking', data),
+  completeStocktaking: (id, data) => tenantApi.patch(`/tenant/inventory/stocktaking/${id}/complete`, data),
 };
 
 export const purchaseOrdersApi = {

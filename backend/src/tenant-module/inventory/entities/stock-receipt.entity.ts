@@ -25,7 +25,7 @@ export class StockReceipt extends BaseEntity {
   @Column({ type: 'date', nullable: true })
   expectedDate?: string;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   confirmedAt?: Date;
 
   @Column({ nullable: true })

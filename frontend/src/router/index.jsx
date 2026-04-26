@@ -23,6 +23,16 @@ import Suppliers from '@tenant/pages/Suppliers';
 import SupplierDetail from '@tenant/pages/SupplierDetail';
 import SupplierForm from '@tenant/pages/SupplierForm';
 import Inventory from '@tenant/pages/Inventory';
+import StockReceiptsList from '@tenant/pages/StockReceiptsList';
+import StockReceiptDetail from '@tenant/pages/StockReceiptDetail';
+import StockInForm from '@tenant/pages/StockInForm';
+import StockOutForm from '@tenant/pages/StockOutForm';
+import AdjustmentForm from '@tenant/pages/AdjustmentForm';
+import TransfersList from '@tenant/pages/TransfersList';
+import TransferForm from '@tenant/pages/TransferForm';
+import TransferDetail from '@tenant/pages/TransferDetail';
+import TransferReceivePage from '@tenant/pages/TransferReceivePage';
+import StocktakingPage from '@tenant/pages/StocktakingPage';
 import PurchaseOrders from '@tenant/pages/PurchaseOrders';
 import SalesOrders from '@tenant/pages/SalesOrders';
 import Payments from '@tenant/pages/Payments';
@@ -72,7 +82,20 @@ export default function AppRouter() {
         <Route path="suppliers/new" element={<SupplierForm />} />
         <Route path="suppliers/:id" element={<SupplierDetail />} />
         <Route path="suppliers/:id/edit" element={<SupplierForm />} />
+
+        {/* ── Inventory (Module 6) ── */}
         <Route path="inventory" element={<Inventory />} />
+        <Route path="inventory/receipts" element={<StockReceiptsList />} />
+        <Route path="inventory/receipts/new" element={<StockInForm />} />
+        <Route path="inventory/receipts/:id" element={<StockReceiptDetail />} />
+        <Route path="inventory/issues/new" element={<StockOutForm />} />
+        <Route path="inventory/adjustments/new" element={<AdjustmentForm />} />
+        <Route path="inventory/transfers" element={<TransfersList />} />
+        <Route path="inventory/transfers/new" element={<TransferForm />} />
+        <Route path="inventory/transfers/:id" element={<TransferDetail />} />
+        <Route path="inventory/transfers/:id/receive" element={<TransferReceivePage />} />
+        <Route path="inventory/stocktaking" element={<StocktakingPage />} />
+
         <Route path="purchase-orders" element={<PurchaseOrders />} />
         <Route path="sales-orders" element={<SalesOrders />} />
         <Route path="payments" element={<Payments />} />
@@ -81,3 +104,4 @@ export default function AppRouter() {
     </Routes>
   );
 }
+

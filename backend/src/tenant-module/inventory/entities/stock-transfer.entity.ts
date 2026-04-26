@@ -23,10 +23,10 @@ export class StockTransfer extends BaseEntity {
   @Column({ type: 'date', nullable: true })
   expectedDate?: string;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   dispatchedAt?: Date;
 
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   receivedAt?: Date;
 
   @Column({ type: 'text', nullable: true })

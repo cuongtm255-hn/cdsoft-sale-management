@@ -151,6 +151,18 @@ export class InventoryController {
 
   // ─── Stocktaking ──────────────────────────────────────────────────────────
 
+  @Get('stocktaking')
+  @ApiOperation({ summary: 'List stocktaking sessions' })
+  getStocktakings(@Query('warehouseId') warehouseId?: string) {
+    return this.service.getStocktakings(warehouseId);
+  }
+
+  @Get('stocktaking/:id')
+  @ApiOperation({ summary: 'Get stocktaking session detail' })
+  getStocktaking(@Param('id') id: string) {
+    return this.service.getStocktaking(id);
+  }
+
   @Post('stocktaking')
   @ApiOperation({ summary: 'Start a new stocktaking session' })
   createStocktaking(
@@ -158,5 +170,15 @@ export class InventoryController {
     @CurrentUser() user: { id: string },
   ) {
     return this.service.createStocktaking(dto, user.id);
+  }
+
+  @Patch('stocktaking/:id/complete')
+  @ApiOperation({ summary: 'Complete stocktaking — compare actual vs system, auto-adjust' })
+  completeStocktaking(
+    @Param('id') id: string,
+    @Body() dto: CompleteStocktakingDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.service.completeStocktaking(id, dto, user.id);
   }
 }

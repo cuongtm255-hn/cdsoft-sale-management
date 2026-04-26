@@ -16,6 +16,7 @@ import { SuppliersService } from './suppliers/suppliers.service';
 import { InventoryController } from './inventory/inventory.controller';
 import { WarehousesController } from './inventory/warehouses.controller';
 import { InventoryService } from './inventory/inventory.service';
+import { JwtStrategy } from '../common/strategies/jwt.strategy';
 
 @Module({
   imports: [
@@ -28,6 +29,6 @@ import { InventoryService } from './inventory/inventory.service';
     }),
   ],
   controllers: [TenantAuthController, ProductsController, UsersController, CategoriesController, CustomersController, SuppliersController, InventoryController, WarehousesController],
-  providers: [TenantAuthService, ProductsService, UsersService, CategoriesService, CustomersService, SuppliersService, InventoryService],
+  providers: [TenantAuthService, ProductsService, UsersService, CategoriesService, CustomersService, SuppliersService, InventoryService, JwtStrategy],
 })
 export class TenantAppModule {}

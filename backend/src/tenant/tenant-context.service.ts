@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AsyncLocalStorage } from 'async_hooks';
 
 export interface TenantContext {
-  tenantCode: string;
+  tenantCode?: string;
   userId?: string;
   userRole?: string;
 }
@@ -21,5 +21,12 @@ export class TenantContextService {
 
   getTenantCode(): string | undefined {
     return this.storage.getStore()?.tenantCode;
+  }
+
+  setTenantCode(code: string): void {
+    const store = this.storage.getStore();
+    if (store) {
+      store.tenantCode = code;
+    }
   }
 }

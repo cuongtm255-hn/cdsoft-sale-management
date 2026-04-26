@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { PlatformAuthController } from './platform-auth.controller';
 import { PlatformAuthService } from './platform-auth.service';
 import { PlatformUser } from '../users/entities/platform-user.entity';
+import { JwtStrategy } from '../../common/strategies/jwt.strategy';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { PlatformUser } from '../users/entities/platform-user.entity';
     }),
   ],
   controllers: [PlatformAuthController],
-  providers: [PlatformAuthService],
+  providers: [PlatformAuthService, JwtStrategy],
   exports: [JwtModule],
 })
 export class PlatformAuthModule {}

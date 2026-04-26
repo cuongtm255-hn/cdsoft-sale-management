@@ -33,6 +33,7 @@ export class CreateProductDto {
   @ApiPropertyOptional() @IsUUID() @IsOptional() defaultWarehouseId?: string;
   @ApiPropertyOptional() @IsNumber() @Min(0) @IsOptional() minStockLevel?: number;
   @ApiPropertyOptional() @IsNumber() @Min(0) @IsOptional() maxStockLevel?: number;
+  @ApiPropertyOptional() @IsBoolean() @IsOptional() isActive?: boolean;
   @ApiPropertyOptional({ type: [ProductUnitDto] })
   @ValidateNested({ each: true }) @Type(() => ProductUnitDto) @IsOptional()
   units?: ProductUnitDto[];

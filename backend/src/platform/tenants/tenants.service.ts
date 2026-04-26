@@ -1,15 +1,19 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
-import { Tenant, TenantStatus } from './entities/tenant.entity';
+import { Tenant, TenantStatus, ProvisioningStatus } from './entities/tenant.entity';
 import { CreateTenantDto, UpdateTenantDto, UpdateTenantStatusDto } from './dto/create-tenant.dto';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { TenantProvisioningService } from './tenant-provisioning.service';
 
 @Injectable()
 export class TenantsService {
+  private readonly logger = new Logger(TenantsService.name);
+
   constructor(
     @InjectRepository(Tenant)
     private readonly repo: Repository<Tenant>,
+    private readonly provisioningService: TenantProvisioningService,
   ) {}
 
   async findAll(pagination: PaginationDto) {
@@ -43,8 +47,15 @@ export class TenantsService {
     const emailExists = await this.repo.findOne({ where: { contactEmail: dto.contactEmail } });
     if (emailExists) throw new ConflictException(`Contact email '${dto.contactEmail}' already exists`);
 
-    const tenant = this.repo.create({ ...dto, createdBy });
-    return this.repo.save(tenant);
+    const tenant = this.repo.create({ ...dto, createdBy, provisioningStatus: ProvisioningStatus.PENDING });
+    const savedTenant = await this.repo.save(tenant);
+
+    // Bắt đầu provisioning bất đồng bộ
+    this.provisioningService.provisionTenant(savedTenant.id).catch((err) => {
+      this.logger.error(`Error triggering provisioning for tenant ${savedTenant.id}`, err);
+    });
+
+    return savedTenant;
   }
 
   async update(id: string, dto: UpdateTenantDto): Promise<Tenant> {

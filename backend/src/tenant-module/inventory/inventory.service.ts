@@ -7,10 +7,13 @@ import { TenantContextService } from '../../tenant/tenant-context.service';
 import { Warehouse } from './entities/warehouse.entity';
 import { InventoryBalance } from './entities/inventory-balance.entity';
 import { InventoryTransaction, TxType } from './entities/inventory-transaction.entity';
+import { InventoryLot } from './entities/inventory-lot.entity';
 import { StockReceipt, ReceiptStatus } from './entities/stock-receipt.entity';
 import { StockReceiptItem } from './entities/stock-receipt-item.entity';
 import { StockTransfer, TransferStatus } from './entities/stock-transfer.entity';
 import { StockTransferItem } from './entities/stock-transfer-item.entity';
+import { StocktakingSession, StocktakingStatus } from './entities/stocktaking-session.entity';
+import { StocktakingItem } from './entities/stocktaking-item.entity';
 import {
   CreateWarehouseDto, UpdateWarehouseDto,
   CreateStockReceiptDto, ConfirmStockReceiptDto,
@@ -31,8 +34,8 @@ export class InventoryService {
     return this.dsManager.getDataSource(this.tenantCtx.getTenantCode()!);
   }
 
-  private async getRepo<T>(entity: new (...args: any[]) => T): Promise<Repository<T>> {
-    return (await this.getDs()).getRepository(entity);
+  private async getRepo<T extends object>(entity: new (...args: any[]) => T): Promise<Repository<T>> {
+    return (await this.getDs()).getRepository(entity) as Repository<T>;
   }
 
   // ─── Warehouses ──────────────────────────────────────────────────────────
@@ -464,25 +467,118 @@ export class InventoryService {
     const wh = await ds.getRepository(Warehouse).findOne({ where: { id: dto.warehouseId } });
     if (!wh) throw new NotFoundException('WAREHOUSE_NOT_FOUND');
 
-    // Snapshot current balances
+    // Snapshot current balances → persist to DB
     const balances = await ds.getRepository(InventoryBalance).find({
       where: { warehouseId: dto.warehouseId },
     });
 
-    // Store as JSON in a simple object (full stocktaking table is out of scope for now)
-    return {
-      id: `ST-${Date.now()}`,
+    const sessionRepo = ds.getRepository(StocktakingSession);
+    const itemRepo = ds.getRepository(StocktakingItem);
+
+    const session = sessionRepo.create({
       warehouseId: dto.warehouseId,
-      warehouseName: wh.name,
       notes: dto.notes,
-      status: 'IN_PROGRESS',
+      status: StocktakingStatus.IN_PROGRESS,
       createdBy: userId,
-      snapshot: balances.map((b) => ({
+    });
+    await sessionRepo.save(session);
+
+    // Snapshot balances as stocktaking items
+    if (balances.length > 0) {
+      const items = balances.map((b) => itemRepo.create({
+        sessionId: session.id,
         productId: b.productId,
         systemQty: Number(b.quantity),
-        actualQty: null,
-      })),
-    };
+      }));
+      await itemRepo.save(items);
+      session.items = items;
+    }
+
+    return { ...session, warehouseName: wh.name };
+  }
+
+  async getStocktakings(warehouseId?: string) {
+    const repo = await this.getRepo(StocktakingSession);
+    const qb = repo.createQueryBuilder('s')
+      .leftJoinAndSelect('s.items', 'items')
+      .orderBy('s.createdAt', 'DESC');
+    if (warehouseId) qb.andWhere('s.warehouseId = :wid', { wid: warehouseId });
+    return qb.getMany();
+  }
+
+  async getStocktaking(id: string) {
+    const repo = await this.getRepo(StocktakingSession);
+    const session = await repo.createQueryBuilder('s')
+      .leftJoinAndSelect('s.items', 'items')
+      .where('s.id = :id', { id })
+      .getOne();
+    if (!session) throw new NotFoundException(`Stocktaking session ${id} not found`);
+    return session;
+  }
+
+  async completeStocktaking(id: string, dto: CompleteStocktakingDto, userId: string) {
+    const ds = await this.getDs();
+    const session = await this.getStocktaking(id);
+
+    if (session.status !== StocktakingStatus.IN_PROGRESS) {
+      throw new BadRequestException('STOCKTAKING_NOT_IN_PROGRESS');
+    }
+
+    const itemRepo = ds.getRepository(StocktakingItem);
+    const balanceRepo = ds.getRepository(InventoryBalance);
+    const txRepo = ds.getRepository(InventoryTransaction);
+
+    let adjustedCount = 0;
+
+    for (const update of dto.items) {
+      const item = session.items?.find((i) => i.productId === update.productId);
+      if (!item) continue;
+
+      const actualQty = Number(update.actualQty);
+      const systemQty = Number(item.systemQty);
+      const adjustQty = actualQty - systemQty;
+
+      item.actualQty = actualQty;
+      item.adjustQty = adjustQty;
+      await itemRepo.save(item);
+
+      if (adjustQty === 0) continue;
+      adjustedCount++;
+
+      // Apply balance adjustment
+      let balance = await balanceRepo.findOne({
+        where: { productId: item.productId, warehouseId: session.warehouseId },
+      });
+      if (!balance) {
+        balance = balanceRepo.create({
+          productId: item.productId,
+          warehouseId: session.warehouseId,
+          quantity: 0,
+          avgCost: 0,
+        });
+      }
+      balance.quantity = Number(balance.quantity) + adjustQty;
+      await balanceRepo.save(balance);
+
+      // Record inventory transaction
+      await txRepo.save(txRepo.create({
+        productId: item.productId,
+        warehouseId: session.warehouseId,
+        transactionType: adjustQty > 0 ? TxType.ADJUSTMENT_IN : TxType.ADJUSTMENT_OUT,
+        quantity: Math.abs(adjustQty),
+        refId: session.id,
+        refType: 'stocktaking',
+        notes: `Kiểm kê kho: ${session.notes ?? ''}`,
+        createdBy: userId,
+      }));
+    }
+
+    const sessionRepo = ds.getRepository(StocktakingSession);
+    session.status = StocktakingStatus.COMPLETED;
+    session.completedAt = new Date();
+    await sessionRepo.save(session);
+
+    return { ...session, adjustedCount };
   }
 
   // ─── Product stock lookup (for forms) ────────────────────────────────────
