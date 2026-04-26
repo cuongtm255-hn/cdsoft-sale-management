@@ -40,6 +40,10 @@ import SalesOrderDetail from '@tenant/pages/SalesOrderDetail';
 import SalesOrderReturn from '@tenant/pages/SalesOrderReturn';
 import Promotions from '@tenant/pages/Promotions';
 import Payments from '@tenant/pages/Payments';
+import InvoiceDetail from '@tenant/pages/InvoiceDetail';
+import AccountsReceivable from '@tenant/pages/AccountsReceivable';
+import AccountsPayable from '@tenant/pages/AccountsPayable';
+import CashManagement from '@tenant/pages/CashManagement';
 import TenantUsers from '@tenant/pages/Users';
 
 export default function AppRouter() {
@@ -107,6 +111,10 @@ export default function AppRouter() {
         <Route path="sales-orders/:id/return" element={<SalesOrderReturn />} />
         <Route path="settings/promotions" element={<Promotions />} />
         <Route path="payments" element={<Payments />} />
+        <Route path="invoices/:id" element={<InvoiceDetail />} />
+        <Route path="finance/ar" element={<AccountsReceivable />} />
+        <Route path="finance/ap" element={<AccountsPayable />} />
+        <Route path="finance/cash" element={<CashManagement />} />
         <Route path="users" element={<TenantUsers />} />
       </Route>
     </Routes>

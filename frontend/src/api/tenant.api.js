@@ -122,9 +122,33 @@ export const promotionsApi = {
   update: (id, data) => tenantApi.patch(`/tenant/promotions/${id}`, data),
 };
 
+export const invoicesApi = {
+  list: (params) => tenantApi.get('/tenant/invoices', { params }),
+  get: (id) => tenantApi.get(`/tenant/invoices/${id}`),
+};
+
 export const paymentsApi = {
   list: (params) => tenantApi.get('/tenant/invoices', { params }),
   record: (data) => tenantApi.post('/tenant/payments', data),
+};
+
+export const arApi = {
+  aging: (params) => tenantApi.get('/tenant/ar/aging', { params }),
+  match: (data) => tenantApi.post('/tenant/ar/match', data),
+  customerPayments: (id, params) => tenantApi.get(`/tenant/customers/${id}/payments`, { params }),
+};
+
+export const apApi = {
+  schedule: (params) => tenantApi.get('/tenant/ap/schedule', { params }),
+};
+
+export const cashApi = {
+  listFunds: () => tenantApi.get('/tenant/cash-funds'),
+  createFund: (data) => tenantApi.post('/tenant/cash-funds', data),
+  listBankAccounts: () => tenantApi.get('/tenant/bank-accounts'),
+  createBankAccount: (data) => tenantApi.post('/tenant/bank-accounts', data),
+  listReceipts: (params) => tenantApi.get('/tenant/cash-receipts', { params }),
+  createReceipt: (data) => tenantApi.post('/tenant/cash-receipts', data),
 };
 
 export const dashboardApi = {
