@@ -32,8 +32,10 @@ export const categoriesApi = {
 
 export const customersApi = {
   list: (params) => tenantApi.get('/tenant/customers', { params }),
+  get: (id) => tenantApi.get(`/tenant/customers/${id}`),
   create: (data) => tenantApi.post('/tenant/customers', data),
   update: (id, data) => tenantApi.put(`/tenant/customers/${id}`, data),
+  transactions: (id, params) => tenantApi.get(`/tenant/customers/${id}/transactions`, { params }),
 };
 
 export const suppliersApi = {

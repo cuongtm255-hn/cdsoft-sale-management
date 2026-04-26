@@ -9,6 +9,8 @@ import { UsersController } from './users/users.controller';
 import { UsersService } from './users/users.service';
 import { CategoriesController } from './categories/categories.controller';
 import { CategoriesService } from './categories/categories.service';
+import { CustomersController } from './customers/customers.controller';
+import { CustomersService } from './customers/customers.service';
 
 @Module({
   imports: [
@@ -20,7 +22,7 @@ import { CategoriesService } from './categories/categories.service';
       inject: [ConfigService],
     }),
   ],
-  controllers: [TenantAuthController, ProductsController, UsersController, CategoriesController],
-  providers: [TenantAuthService, ProductsService, UsersService, CategoriesService],
+  controllers: [TenantAuthController, ProductsController, UsersController, CategoriesController, CustomersController],
+  providers: [TenantAuthService, ProductsService, UsersService, CategoriesService, CustomersService],
 })
 export class TenantAppModule {}
