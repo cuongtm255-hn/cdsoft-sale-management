@@ -69,7 +69,7 @@ export class LoyaltyService {
 
   async earnPoints(dto: EarnPointsDto, userId?: string): Promise<LoyaltyTransaction> {
     const config = await this.getConfig();
-    if (!config.isEnabled) return null;
+    if (!config.isEnabled) return null as unknown as LoyaltyTransaction;
 
     const ds = await this.getDs();
     const expiresAt = new Date();

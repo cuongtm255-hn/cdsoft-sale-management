@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 
 // Load .env.local trước, sau đó fallback sang .env
 dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
@@ -27,4 +28,5 @@ export const AppDataSource = new DataSource({
 
   synchronize: false,
   logging: true,
+  namingStrategy: new SnakeNamingStrategy(),
 });

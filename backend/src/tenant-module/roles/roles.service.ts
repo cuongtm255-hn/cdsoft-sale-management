@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { In } from 'typeorm';
-import { TenantDataSourceManager } from '@tenant/tenant-datasource.manager';
-import { TenantContextService } from '@tenant/tenant-context.service';
+import { TenantDataSourceManager } from '../../tenant/tenant-datasource.manager';
+import { TenantContextService } from '../../tenant/tenant-context.service';
 import { Role } from './entities/role.entity';
 import { Permission } from './entities/permission.entity';
 import { RolePermission } from './entities/role-permission.entity';

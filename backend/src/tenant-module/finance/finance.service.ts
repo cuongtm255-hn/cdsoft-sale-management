@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { TenantDataSourceManager } from '@tenant/tenant-datasource.manager';
-import { TenantContextService } from '@tenant/tenant-context.service';
+import { TenantDataSourceManager } from '../../tenant/tenant-datasource.manager';
+import { TenantContextService } from '../../tenant/tenant-context.service';
 import { CashFund } from '../invoices/entities/cash-fund.entity';
 import { BankAccount } from '../invoices/entities/bank-account.entity';
 import { Disbursement } from './entities/disbursement.entity';

@@ -2,6 +2,8 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, DataSourceOptions } from 'typeorm';
+import * as path from 'path';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 
 export interface TenantDbConfig {
   tenantCode: string;
@@ -39,7 +41,11 @@ export class TenantDataSourceManager {
       password: dbConfig.password,
       database: dbConfig.database,
       entities: [__dirname + '/../tenant-module/**/*.entity{.ts,.js}'],
+      migrations: [path.resolve(__dirname, '../database/tenant-migrations/*{.ts,.js}')],
+      migrationsRun: true,
+      migrationsTableName: 'typeorm_migrations',
       synchronize: false,
+      namingStrategy: new SnakeNamingStrategy(),
     };
 
     const ds = new DataSource(options);
@@ -57,7 +63,7 @@ export class TenantDataSourceManager {
 
   private async resolveTenantDbConfig(tenantCode: string): Promise<TenantDbConfig> {
     const [tenant] = await this.platformDs.query(
-      'SELECT dbHost, dbPort, dbName, dbUsername, status FROM tenants WHERE tenantCode = ? AND status = "ACTIVE"',
+      'SELECT db_host, db_port, db_name, db_username, status FROM tenants WHERE tenant_code = ? AND status = "ACTIVE"',
       [tenantCode]
     );
 
@@ -65,17 +71,17 @@ export class TenantDataSourceManager {
       throw new NotFoundException(`Tenant config not found for code: ${tenantCode} or tenant is inactive`);
     }
 
-    if (!tenant.dbName) {
+    if (!tenant.db_name) {
       throw new NotFoundException(`Tenant ${tenantCode} has not been provisioned properly yet`);
     }
 
     return {
       tenantCode,
-      host: tenant.dbHost || this.config.get<string>('database.host') || 'localhost',
-      port: tenant.dbPort || this.config.get<number>('database.port') || 3306,
-      username: tenant.dbUsername || this.config.get<string>('database.username') || 'root',
-      password: this.config.get<string>('database.password') || '', // Có thể lưu riêng hoặc dùng chung
-      database: tenant.dbName,
+      host: tenant.db_host || this.config.get<string>('database.host') || 'localhost',
+      port: tenant.db_port || this.config.get<number>('database.port') || 3306,
+      username: tenant.db_username || this.config.get<string>('database.username') || 'root',
+      password: this.config.get<string>('database.password') || '',
+      database: tenant.db_name,
     };
   }
 }

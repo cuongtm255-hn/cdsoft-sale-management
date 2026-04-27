@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { TenantDataSourceManager } from '@tenant/tenant-datasource.manager';
-import { TenantContextService } from '@tenant/tenant-context.service';
+import { TenantDataSourceManager } from '../../tenant/tenant-datasource.manager';
+import { TenantContextService } from '../../tenant/tenant-context.service';
 import { AuditLog } from './entities/audit-log.entity';
 import { PaginationDto } from '@common/dto/pagination.dto';
 import { IsDateString, IsOptional, IsString, IsUUID } from 'class-validator';

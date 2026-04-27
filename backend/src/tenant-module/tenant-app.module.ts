@@ -34,6 +34,8 @@ import { FinanceController } from './finance/finance.controller';
 import { FinanceService } from './finance/finance.service';
 import { SerialController } from './serial/serial.controller';
 import { SerialService } from './serial/serial.service';
+import { DashboardController } from './dashboard/dashboard.controller';
+import { DashboardService } from './dashboard/dashboard.service';
 import { JwtStrategy } from '../common/strategies/jwt.strategy';
 
 @Module({
@@ -57,6 +59,7 @@ import { JwtStrategy } from '../common/strategies/jwt.strategy';
     RolesController, AuditLogController,
     FinanceController,
     SerialController,
+    DashboardController,
   ],
   providers: [
     TenantAuthService, ProductsService, UsersService, CategoriesService,
@@ -67,6 +70,7 @@ import { JwtStrategy } from '../common/strategies/jwt.strategy';
     RolesService, AuditLogService,
     FinanceService,
     SerialService,
+    DashboardService,
     JwtStrategy,
     { provide: APP_INTERCEPTOR, useClass: AuditLogInterceptor },
   ],

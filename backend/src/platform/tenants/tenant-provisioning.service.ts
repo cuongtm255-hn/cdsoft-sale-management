@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, DataSourceOptions } from 'typeorm';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import * as bcrypt from 'bcrypt';
 import { Tenant, ProvisioningStatus, TenantStatus } from './entities/tenant.entity';
 import { User, UserRole, UserStatus } from '../../tenant-module/users/entities/user.entity';
@@ -51,7 +52,8 @@ export class TenantProvisioningService {
         password: dbPassword,
         database: dbName,
         entities: [__dirname + '/../../tenant-module/**/*.entity{.ts,.js}'],
-        synchronize: true, // Auto create schema
+        synchronize: true,
+        namingStrategy: new SnakeNamingStrategy(),
       };
 
       const tenantDs = new DataSource(tenantOptions);

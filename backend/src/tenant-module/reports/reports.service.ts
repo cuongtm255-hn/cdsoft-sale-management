@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { TenantDataSourceManager } from '@tenant/tenant-datasource.manager';
-import { TenantContextService } from '@tenant/tenant-context.service';
+import { TenantDataSourceManager } from '../../tenant/tenant-datasource.manager';
+import { TenantContextService } from '../../tenant/tenant-context.service';
 import { CommissionConfigEntity } from './entities/commission-config.entity';
 import {
   SalesReportFilterDto, InventoryMovementFilterDto, DeadstockFilterDto,

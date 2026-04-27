@@ -1,6 +1,7 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
@@ -30,8 +31,9 @@ import { TenantContextMiddleware } from './tenant/tenant-context.middleware';
         migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
         // synchronize: false — dùng migration thay vì auto-sync
         synchronize: false,
-        migrationsRun: false, // DatabaseInitService sẽ gọi thủ công để có thể log rõ ràng
+        migrationsRun: false,
         logging: config.get('app.env') === 'development',
+        namingStrategy: new SnakeNamingStrategy(),
       }),
       inject: [ConfigService],
     }),

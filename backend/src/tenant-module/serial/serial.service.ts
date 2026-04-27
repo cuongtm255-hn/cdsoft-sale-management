@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { TenantDataSourceManager } from '@tenant/tenant-datasource.manager';
-import { TenantContextService } from '@tenant/tenant-context.service';
+import { TenantDataSourceManager } from '../../tenant/tenant-datasource.manager';
+import { TenantContextService } from '../../tenant/tenant-context.service';
 import { SerialNumber } from './entities/serial-number.entity';
 import { SerialQueryDto } from './dto/serial.dto';
 import { PaginationDto } from '@common/dto/pagination.dto';
