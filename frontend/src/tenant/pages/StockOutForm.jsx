@@ -51,10 +51,22 @@ export default function StockOutForm() {
   }, [productSearch]);
 
   const handleProductSelect = async (productId, index) => {
-    const product = productMap[productId];
-    if (!product) return;
-    const units = (product.units ?? []).map((u) => ({ label: u.name, value: u.id }));
-    setUnitOptions((prev) => ({ ...prev, [index]: units }));
+    let product = productMap[productId];
+    if (!product?.units) {
+      const res = await productsApi.get(productId);
+      product = res.data?.data ?? res.data;
+      setProductMap((prev) => ({ ...prev, [productId]: product }));
+    }
+
+    const baseOpt = { label: product.baseUnit || 'Đơn vị cơ bản', value: null, convRate: 1 };
+    const conversionOpts = (product.units ?? [])
+      .filter((u) => !u.isBase)
+      .map((u) => ({ label: `${u.name} (×${Number(u.conversionRate)})`, value: u.id, convRate: Number(u.conversionRate) }));
+    setUnitOptions((prev) => ({ ...prev, [index]: [baseOpt, ...conversionOpts] }));
+
+    const currentItems = form.getFieldValue('items') ?? [];
+    currentItems[index] = { ...currentItems[index], productId, unitId: null };
+    form.setFieldValue('items', currentItems);
 
     if (warehouseId) {
       inventoryApi.productStock(productId, warehouseId).then((res) => {
@@ -66,7 +78,7 @@ export default function StockOutForm() {
 
   const { execute: submit, loading } = useApi(inventoryApi.stockOut, {
     successMessage: 'Xuất kho thành công',
-    onSuccess: () => navigate('/tenant/inventory'),
+    onSuccess: () => navigate('/tenant/inventory/issues'),
   });
 
   const handleSubmit = (values) => {
@@ -77,7 +89,7 @@ export default function StockOutForm() {
       notes: values.notes,
       items: values.items.map((i) => ({
         productId: i.productId,
-        unitId: i.unitId,
+        ...(i.unitId ? { unitId: i.unitId } : {}),
         quantity: i.quantity,
       })),
     });
@@ -88,7 +100,7 @@ export default function StockOutForm() {
       <PageHeader
         title={
           <Space>
-            <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate('/tenant/inventory')} />
+            <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate('/tenant/inventory/issues')} />
             Phiếu xuất kho mới
           </Space>
         }
@@ -134,7 +146,11 @@ export default function StockOutForm() {
                   const item = items[name] ?? {};
                   const stockKey = `${name}_${item.productId}`;
                   const available = stockMap[stockKey];
-                  const insufficient = available !== undefined && Number(item.quantity ?? 0) > available;
+                  const unitOpts = unitOptions[name] ?? [];
+                  const selectedUnit = unitOpts.find((u) => u.value === (item.unitId ?? null));
+                  const convRate = selectedUnit?.convRate ?? 1;
+                  const qtyInBase = Number(item.quantity ?? 0) * convRate;
+                  const insufficient = available !== undefined && qtyInBase > available;
 
                   return (
                     <div key={key} style={{ display: 'grid', gridTemplateColumns: '2fr 130px 100px 120px 60px', gap: 8, marginBottom: 8, alignItems: 'start' }}>
@@ -165,7 +181,7 @@ export default function StockOutForm() {
                               {Number(available).toLocaleString('vi-VN')}
                             </Typography.Text>
                             {insufficient && (
-                              <Tooltip title="Không đủ hàng">
+                              <Tooltip title={convRate > 1 ? `Không đủ hàng (cần ${qtyInBase.toLocaleString('vi-VN')} đơn vị cơ bản, tồn ${Number(available).toLocaleString('vi-VN')})` : 'Không đủ hàng'}>
                                 <WarningOutlined style={{ color: '#ff4d4f' }} />
                               </Tooltip>
                             )}

@@ -133,7 +133,7 @@ export default function StockInForm() {
       <PageHeader
         title={
           <Space>
-            <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate('/tenant/inventory')} />
+            <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate('/tenant/inventory/receipts')} />
             Phiếu nhập kho mới
           </Space>
         }

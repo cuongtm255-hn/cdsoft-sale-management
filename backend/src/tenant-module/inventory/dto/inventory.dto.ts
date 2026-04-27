@@ -155,6 +155,10 @@ export class StockReceiptFilterDto extends PaginationDto {
   @IsOptional() @IsUUID() warehouseId?: string;
 }
 
+export class StockOutFilterDto extends PaginationDto {
+  @IsOptional() @IsUUID() warehouseId?: string;
+}
+
 export class InventoryFilterDto extends PaginationDto {
   @IsOptional() @IsUUID() warehouseId?: string;
   @IsOptional() @IsUUID() productId?: string;

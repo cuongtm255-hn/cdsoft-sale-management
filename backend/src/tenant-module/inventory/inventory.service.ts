@@ -20,7 +20,7 @@ import {
   CreateStockOutDto, CreateAdjustmentDto,
   CreateTransferDto, ReceiveTransferDto,
   CreateStocktakingDto, CompleteStocktakingDto,
-  InventoryFilterDto, StockReceiptFilterDto,
+  InventoryFilterDto, StockReceiptFilterDto, StockOutFilterDto,
 } from './dto/inventory.dto';
 
 @Injectable()
@@ -151,7 +151,7 @@ export class InventoryService {
     return { data, total, page: filter.page, limit: filter.limit };
   }
 
-  async getReceipt(id: string): Promise<StockReceipt> {
+  private async loadReceiptEntity(id: string): Promise<StockReceipt> {
     const repo = await this.getRepo(StockReceipt);
     const receipt = await repo.createQueryBuilder('r')
       .leftJoinAndSelect('r.items', 'items')
@@ -161,9 +161,47 @@ export class InventoryService {
     return receipt;
   }
 
-  async confirmReceipt(id: string, dto: ConfirmStockReceiptDto, userId: string): Promise<StockReceipt> {
+  async getReceipt(id: string) {
+    const receipt = await this.loadReceiptEntity(id);
     const ds = await this.getDs();
-    const receipt = await this.getReceipt(id);
+
+    const productIds = [...new Set((receipt.items ?? []).map((i) => i.productId))];
+    const unitIds = [...new Set((receipt.items ?? []).filter((i) => i.unitId).map((i) => i.unitId!))];
+
+    const [whRows, supplierRows, productRows, unitRows] = await Promise.all([
+      ds.query('SELECT id, name FROM warehouses WHERE id = ?', [receipt.warehouseId]),
+      receipt.supplierId
+        ? ds.query('SELECT id, name, code FROM suppliers WHERE id = ?', [receipt.supplierId])
+        : Promise.resolve([]),
+      productIds.length
+        ? ds.query(`SELECT id, name, sku FROM products WHERE id IN (${productIds.map(() => '?').join(',')})`, productIds)
+        : Promise.resolve([]),
+      unitIds.length
+        ? ds.query(`SELECT id, name FROM product_units WHERE id IN (${unitIds.map(() => '?').join(',')})`, unitIds)
+        : Promise.resolve([]),
+    ]);
+
+    const productMap: Record<string, any> = Object.fromEntries(productRows.map((p: any) => [p.id, p]));
+    const unitMap: Record<string, any> = Object.fromEntries(unitRows.map((u: any) => [u.id, u]));
+    const supplier = supplierRows[0];
+
+    return {
+      ...receipt,
+      warehouseName: whRows[0]?.name,
+      supplierCode: supplier?.code,
+      supplierName: supplier?.name,
+      items: (receipt.items ?? []).map((item) => ({
+        ...item,
+        productSku: productMap[item.productId]?.sku,
+        productName: productMap[item.productId]?.name,
+        unitName: item.unitId ? unitMap[item.unitId]?.name : null,
+      })),
+    };
+  }
+
+  async confirmReceipt(id: string, dto: ConfirmStockReceiptDto, userId: string) {
+    const ds = await this.getDs();
+    const receipt = await this.loadReceiptEntity(id);
 
     if (receipt.status !== ReceiptStatus.DRAFT) {
       throw new BadRequestException('RECEIPT_NOT_DRAFT');
@@ -180,7 +218,7 @@ export class InventoryService {
         await itemRepo.save(item);
       }
       // reload
-      const refreshed = await this.getReceipt(id);
+      const refreshed = await this.loadReceiptEntity(id);
       receipt.items = refreshed.items;
     }
 
@@ -238,13 +276,14 @@ export class InventoryService {
     return this.getReceipt(id);
   }
 
-  async cancelReceipt(id: string): Promise<StockReceipt> {
+  async cancelReceipt(id: string) {
     const ds = await this.getDs();
-    const receipt = await this.getReceipt(id);
+    const receipt = await this.loadReceiptEntity(id);
     if (receipt.status !== ReceiptStatus.DRAFT) throw new BadRequestException('RECEIPT_NOT_DRAFT');
     const repo = ds.getRepository(StockReceipt);
     receipt.status = ReceiptStatus.CANCELLED;
-    return repo.save(receipt);
+    await repo.save(receipt);
+    return this.getReceipt(id);
   }
 
   // ─── Stock Out ────────────────────────────────────────────────────────────
@@ -254,37 +293,79 @@ export class InventoryService {
     const balanceRepo = ds.getRepository(InventoryBalance);
     const txRepo = ds.getRepository(InventoryTransaction);
 
+    // Resolve unit conversion rates (same pattern as createReceipt)
+    const productUnitIds = dto.items.filter((i) => i.unitId).map((i) => i.unitId!);
+    let unitMap: Record<string, number> = {};
+    if (productUnitIds.length) {
+      const units = await ds.query(
+        `SELECT id, conversion_rate FROM product_units WHERE id IN (${productUnitIds.map(() => '?').join(',')})`,
+        productUnitIds,
+      );
+      unitMap = Object.fromEntries(units.map((u: any) => [u.id, parseFloat(u.conversion_rate)]));
+    }
+
     for (const item of dto.items) {
+      const convRate = unitMap[item.unitId!] ?? 1;
+      const qtyInBase = item.quantity * convRate;
+
       const balance = await balanceRepo.findOne({
         where: { productId: item.productId, warehouseId: dto.warehouseId },
       });
       const available = Number(balance?.quantity ?? 0);
-      if (available < item.quantity) {
+      if (available < qtyInBase) {
         throw new BadRequestException({
           code: 'INSUFFICIENT_STOCK',
           productId: item.productId,
           available,
-          requested: item.quantity,
+          requested: qtyInBase,
         });
       }
 
-      balance!.quantity = available - item.quantity;
+      balance!.quantity = available - qtyInBase;
       await balanceRepo.save(balance!);
 
       await txRepo.save(txRepo.create({
         productId: item.productId,
         warehouseId: dto.warehouseId,
         transactionType: TxType.STOCK_OUT,
-        quantity: item.quantity,
+        quantity: qtyInBase,
         unitCost: Number(balance!.avgCost),
         refId: dto.orderId,
-        refType: dto.orderId ? 'order' : undefined,
+        refType: dto.issueType,
         notes: dto.notes,
         createdBy: userId,
       }));
     }
 
     return { success: true };
+  }
+
+  async getStockOuts(filter: StockOutFilterDto) {
+    const ds = await this.getDs();
+    const qb = ds.getRepository(InventoryTransaction)
+      .createQueryBuilder('t')
+      .innerJoin('products', 'p', 'p.id = t.product_id AND p.deleted_at IS NULL')
+      .innerJoin('warehouses', 'w', 'w.id = t.warehouse_id')
+      .select([
+        't.id AS id',
+        'p.sku AS sku',
+        'p.name AS productName',
+        'w.name AS warehouseName',
+        'CAST(t.quantity AS FLOAT) AS quantity',
+        'CAST(t.unit_cost AS FLOAT) AS unitCost',
+        't.ref_id AS refId',
+        't.ref_type AS issueType',
+        't.notes AS notes',
+        't.created_at AS createdAt',
+      ])
+      .where('t.transaction_type = :type', { type: TxType.STOCK_OUT })
+      .orderBy('t.created_at', 'DESC');
+
+    if (filter.warehouseId) qb.andWhere('t.warehouse_id = :wid', { wid: filter.warehouseId });
+
+    const total = await qb.getCount();
+    const data = await qb.offset(filter.skip).limit(filter.limit).getRawMany();
+    return { data, total, page: filter.page, limit: filter.limit };
   }
 
   // ─── Adjustment ───────────────────────────────────────────────────────────

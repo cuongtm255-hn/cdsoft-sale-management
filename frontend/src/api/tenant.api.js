@@ -68,6 +68,7 @@ export const inventoryApi = {
   cancelReceipt: (id) => tenantApi.patch(`/tenant/inventory/stock-receipts/${id}/cancel`),
 
   // Stock out (xuất kho)
+  getIssues: (params) => tenantApi.get('/tenant/inventory/stock-out', { params }),
   stockOut: (data) => tenantApi.post('/tenant/inventory/stock-out', data),
 
   // Stock adjustment (điều chỉnh kho)

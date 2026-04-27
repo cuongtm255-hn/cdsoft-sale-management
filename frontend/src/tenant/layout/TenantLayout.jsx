@@ -24,7 +24,7 @@ const menuItems = [
     children: [
       { key: '/tenant/inventory',                  icon: <InboxOutlined />,   label: 'Tồn kho' },
       { key: '/tenant/inventory/receipts',         icon: <ImportOutlined />,  label: 'Phiếu nhập' },
-      { key: '/tenant/inventory/issues/new',       icon: <ExportOutlined />,  label: 'Phiếu xuất' },
+      { key: '/tenant/inventory/issues',            icon: <ExportOutlined />,  label: 'Phiếu xuất' },
       { key: '/tenant/inventory/transfers',        icon: <SwapOutlined />,    label: 'Chuyển kho' },
       { key: '/tenant/inventory/stocktaking',      icon: <AuditOutlined />,   label: 'Kiểm kho' },
     ],

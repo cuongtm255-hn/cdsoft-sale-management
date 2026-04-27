@@ -10,7 +10,7 @@ import {
   CreateStockOutDto, CreateAdjustmentDto,
   CreateTransferDto, ReceiveTransferDto,
   CreateStocktakingDto, CompleteStocktakingDto,
-  InventoryFilterDto, StockReceiptFilterDto,
+  InventoryFilterDto, StockReceiptFilterDto, StockOutFilterDto,
 } from './dto/inventory.dto';
 
 @ApiTags('Tenant / Inventory')
@@ -86,6 +86,12 @@ export class InventoryController {
   }
 
   // ─── Stock Out ────────────────────────────────────────────────────────────
+
+  @Get('stock-out')
+  @ApiOperation({ summary: 'List stock issues' })
+  getStockOuts(@Query() filter: StockOutFilterDto) {
+    return this.service.getStockOuts(filter);
+  }
 
   @Post('stock-out')
   @ApiOperation({ summary: 'Create stock issue' })

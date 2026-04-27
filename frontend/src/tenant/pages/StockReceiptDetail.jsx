@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Button, Card, Col, Descriptions, Divider, Popconfirm, Row,
-  Space, Spin, Table, Tag, Typography,
+  Space, Spin, Table, Tag, Tooltip, Typography,
 } from 'antd';
 import { ArrowLeftOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -54,8 +54,30 @@ export default function StockReceiptDetail() {
   const isDraft = receipt.status === 'DRAFT';
 
   const itemColumns = [
-    { title: 'Sản phẩm', dataIndex: 'productId', key: 'productId', render: (v) => v },
-    { title: 'Đơn vị', dataIndex: 'unitId', key: 'unitId', render: (v) => v || '—' },
+    {
+      title: 'Sản phẩm',
+      key: 'product',
+      render: (_, row) => {
+        const name = row.productName ?? '';
+        const truncated = name.length > 20;
+        return (
+          <span>
+            <Typography.Text code>{row.productSku ?? row.productId}</Typography.Text>{' '}
+            {truncated ? (
+              <Tooltip title={name}>
+                <span style={{ cursor: 'default' }}>{name.slice(0, 20)}…</span>
+              </Tooltip>
+            ) : name}
+          </span>
+        );
+      },
+    },
+    {
+      title: 'Đơn vị',
+      key: 'unit',
+      width: 120,
+      render: (_, row) => row.unitName ?? '—',
+    },
     {
       title: 'Số lượng',
       dataIndex: 'quantity',
@@ -129,8 +151,12 @@ export default function StockReceiptDetail() {
       <Card style={{ marginBottom: 16 }}>
         <Descriptions column={3} size="small">
           <Descriptions.Item label="Mã tham chiếu">{receipt.refCode || '—'}</Descriptions.Item>
-          <Descriptions.Item label="Nhà cung cấp">{receipt.supplierId || '—'}</Descriptions.Item>
-          <Descriptions.Item label="Kho nhập">{receipt.warehouseId}</Descriptions.Item>
+          <Descriptions.Item label="Nhà cung cấp">
+            {receipt.supplierCode
+              ? <Tooltip title={receipt.supplierName}><span style={{ cursor: 'default' }}>{receipt.supplierCode}</span></Tooltip>
+              : '—'}
+          </Descriptions.Item>
+          <Descriptions.Item label="Kho nhập">{receipt.warehouseName ?? receipt.warehouseId}</Descriptions.Item>
           <Descriptions.Item label="Ngày dự kiến">
             {receipt.expectedDate ? dayjs(receipt.expectedDate).format('DD/MM/YYYY') : '—'}
           </Descriptions.Item>
