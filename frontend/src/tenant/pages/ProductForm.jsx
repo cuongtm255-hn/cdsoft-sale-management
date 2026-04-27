@@ -82,16 +82,31 @@ export default function ProductForm() {
           defaultWarehouseId: p.defaultWarehouseId,
           minStockLevel: p.minStockLevel,
           maxStockLevel: p.maxStockLevel,
-          units: p.units ?? [],
-          prices: p.prices ?? [],
+          units: (p.units ?? []).map(({ name, conversionRate, barcode }) => ({
+            name,
+            conversionRate: Number(conversionRate),
+            barcode,
+          })),
+          prices: (p.prices ?? []).map(({ priceType, amount, unitId, currency, effectiveFrom, effectiveTo }) => ({
+            priceType,
+            amount: Number(amount),
+            unitId,
+            currency,
+            effectiveFrom,
+            effectiveTo,
+          })),
         });
       }).finally(() => setLoadingProduct(false));
     }
   }, [id]);
 
   const handleSubmit = (values) => {
-    if (isEditing) updateProduct(values);
-    else createProduct(values);
+    if (isEditing) {
+      const { sku: _sku, ...updateData } = values;
+      updateProduct(updateData);
+    } else {
+      createProduct(values);
+    }
   };
 
   const priceTypeOptions = PRICE_TYPES.filter((t) => !t.restricted || canSeeCost);

@@ -9,13 +9,13 @@ import { PriceType } from '../entities/product-price.entity';
 
 export class ProductUnitDto {
   @ApiProperty() @IsString() @Length(1, 50) name: string;
-  @ApiProperty() @IsNumber() @Min(0.0001) conversionRate: number;
+  @ApiProperty() @Type(() => Number) @IsNumber() @Min(0.0001) conversionRate: number;
   @ApiPropertyOptional() @IsString() @MaxLength(100) @IsOptional() barcode?: string;
 }
 
 export class ProductPriceDto {
   @ApiProperty({ enum: PriceType }) @IsEnum(PriceType) priceType: PriceType;
-  @ApiProperty() @IsNumber() @Min(0) amount: number;
+  @ApiProperty() @Type(() => Number) @IsNumber() @Min(0) amount: number;
   @ApiPropertyOptional() @IsString() @IsOptional() unitId?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() currency?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() effectiveFrom?: string;

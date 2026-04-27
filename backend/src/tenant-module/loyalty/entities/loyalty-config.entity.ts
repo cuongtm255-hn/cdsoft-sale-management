@@ -31,7 +31,7 @@ export class LoyaltyConfig extends BaseEntity {
   @Column({ default: true })
   allowTierDowngrade: boolean;
 
-  @Column({ type: 'json', default: '[]' })
+  @Column({ type: 'json', nullable: true })
   tiers: LoyaltyTier[];
 
   @UpdateDateColumn()

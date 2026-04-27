@@ -11,6 +11,6 @@ export class CommissionConfigEntity extends BaseEntity {
   @Column({ default: 'REVENUE_PERCENT' })
   type: string;
 
-  @Column({ type: 'json', default: '[]' })
+  @Column({ type: 'json', nullable: true })
   rules: CommissionRule[];
 }

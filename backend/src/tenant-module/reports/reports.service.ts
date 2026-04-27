@@ -461,7 +461,7 @@ export class ReportsService {
       ORDER BY totalRevenue DESC
     `);
 
-    const rules = [...cfg.rules].sort((a, b) => b.minRevenue - a.minRevenue);
+    const rules = [...(cfg.rules ?? [])].sort((a, b) => b.minRevenue - a.minRevenue);
 
     return {
       data: rows.map((r: any) => {

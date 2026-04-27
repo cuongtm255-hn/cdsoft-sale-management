@@ -242,8 +242,9 @@ export class LoyaltyService {
       [customerId],
     );
 
-    const currentTier = config.tiers.find((t) => t.name === customer.member_tier);
-    const nextTier = [...config.tiers]
+    const tiers = config.tiers ?? [];
+    const currentTier = tiers.find((t) => t.name === customer.member_tier);
+    const nextTier = [...tiers]
       .sort((a, b) => a.minPoints - b.minPoints)
       .find((t) => t.minPoints > Number(customer.loyalty_points));
 
@@ -265,7 +266,7 @@ export class LoyaltyService {
 
   async evaluateTierForCustomer(customerId: string, config?: LoyaltyConfig): Promise<void> {
     if (!config) config = await this.getConfig();
-    if (!config.isEnabled || !config.tiers.length) return;
+    if (!config.isEnabled || !config.tiers?.length) return;
 
     const ds = await this.getDs();
     const cutoff = new Date();
@@ -279,7 +280,7 @@ export class LoyaltyService {
     );
     const earned = Number(result[0]?.earned ?? 0);
 
-    const sorted = [...config.tiers].sort((a, b) => b.minPoints - a.minPoints);
+    const sorted = [...(config.tiers ?? [])].sort((a, b) => b.minPoints - a.minPoints);
     const newTier = sorted.find((t) => earned >= t.minPoints);
     if (!newTier) return;
 
