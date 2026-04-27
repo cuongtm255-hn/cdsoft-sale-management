@@ -11,6 +11,7 @@ import { PaginationDto } from '../../../common/dto/pagination.dto';
 export class CreateWarehouseDto {
   @IsString() @MinLength(2) name: string;
   @IsOptional() @IsString() address?: string;
+  @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
 export class UpdateWarehouseDto {
@@ -149,6 +150,10 @@ export class CompleteStocktakingDto {
 }
 
 // ─── Transactions / Balance view ─────────────────────────────────────────────
+
+export class StockReceiptFilterDto extends PaginationDto {
+  @IsOptional() @IsUUID() warehouseId?: string;
+}
 
 export class InventoryFilterDto extends PaginationDto {
   @IsOptional() @IsUUID() warehouseId?: string;

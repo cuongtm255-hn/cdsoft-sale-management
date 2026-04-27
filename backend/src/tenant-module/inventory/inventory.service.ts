@@ -20,7 +20,7 @@ import {
   CreateStockOutDto, CreateAdjustmentDto,
   CreateTransferDto, ReceiveTransferDto,
   CreateStocktakingDto, CompleteStocktakingDto,
-  InventoryFilterDto,
+  InventoryFilterDto, StockReceiptFilterDto,
 } from './dto/inventory.dto';
 
 @Injectable()
@@ -120,7 +120,7 @@ export class InventoryService {
     let unitMap: Record<string, number> = {};
     if (productUnitIds.length) {
       const units = await ds.query(
-        `SELECT id, conversion_rate FROM product_units WHERE id IN (${productUnitIds.map((_, i) => `$${i + 1}`).join(',')})`,
+        `SELECT id, conversion_rate FROM product_units WHERE id IN (${productUnitIds.map(() => '?').join(',')})`,
         productUnitIds,
       );
       unitMap = Object.fromEntries(units.map((u: any) => [u.id, parseFloat(u.conversion_rate)]));
@@ -141,13 +141,14 @@ export class InventoryService {
     return this.getReceipt(receipt.id);
   }
 
-  async getReceipts(warehouseId?: string) {
+  async getReceipts(filter: StockReceiptFilterDto) {
     const repo = await this.getRepo(StockReceipt);
     const qb = repo.createQueryBuilder('r')
       .leftJoinAndSelect('r.items', 'items')
       .orderBy('r.createdAt', 'DESC');
-    if (warehouseId) qb.andWhere('r.warehouseId = :wid', { wid: warehouseId });
-    return qb.getMany();
+    if (filter.warehouseId) qb.andWhere('r.warehouseId = :wid', { wid: filter.warehouseId });
+    const [data, total] = await qb.skip(filter.skip).take(filter.limit).getManyAndCount();
+    return { data, total, page: filter.page, limit: filter.limit };
   }
 
   async getReceipt(id: string): Promise<StockReceipt> {

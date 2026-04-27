@@ -3,7 +3,9 @@ import { Layout, Menu, Button, Typography } from 'antd';
 import {
   DashboardOutlined, ShoppingOutlined, AppstoreOutlined, UserOutlined,
   TruckOutlined, InboxOutlined, ShoppingCartOutlined, FileTextOutlined,
-  DollarOutlined, TeamOutlined, LogoutOutlined,
+  DollarOutlined, TeamOutlined, LogoutOutlined, SettingOutlined,
+  HomeOutlined, GiftOutlined, StarOutlined, ImportOutlined, ExportOutlined,
+  SwapOutlined, AuditOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '@auth/AuthContext';
 
@@ -11,21 +13,49 @@ const { Header, Sider, Content } = Layout;
 
 const menuItems = [
   { key: '/tenant/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
-  { key: '/tenant/products', icon: <ShoppingOutlined />, label: 'Products' },
-  { key: '/tenant/categories', icon: <AppstoreOutlined />, label: 'Categories' },
-  { key: '/tenant/customers', icon: <UserOutlined />, label: 'Customers' },
-  { key: '/tenant/suppliers', icon: <TruckOutlined />, label: 'Suppliers' },
-  { key: '/tenant/inventory', icon: <InboxOutlined />, label: 'Inventory' },
-  { key: '/tenant/purchase-orders', icon: <ShoppingCartOutlined />, label: 'Purchase Orders' },
-  { key: '/tenant/sales-orders', icon: <FileTextOutlined />, label: 'Sales Orders' },
-  { key: '/tenant/payments', icon: <DollarOutlined />, label: 'Payments' },
-  { key: '/tenant/users', icon: <TeamOutlined />, label: 'Users' },
+  { key: '/tenant/products', icon: <ShoppingOutlined />, label: 'Sản phẩm' },
+  { key: '/tenant/categories', icon: <AppstoreOutlined />, label: 'Danh mục' },
+  { key: '/tenant/customers', icon: <UserOutlined />, label: 'Khách hàng' },
+  { key: '/tenant/suppliers', icon: <TruckOutlined />, label: 'Nhà cung cấp' },
+  {
+    key: 'inventory-group',
+    icon: <InboxOutlined />,
+    label: 'Kho hàng',
+    children: [
+      { key: '/tenant/inventory',                  icon: <InboxOutlined />,   label: 'Tồn kho' },
+      { key: '/tenant/inventory/receipts',         icon: <ImportOutlined />,  label: 'Phiếu nhập' },
+      { key: '/tenant/inventory/issues/new',       icon: <ExportOutlined />,  label: 'Phiếu xuất' },
+      { key: '/tenant/inventory/transfers',        icon: <SwapOutlined />,    label: 'Chuyển kho' },
+      { key: '/tenant/inventory/stocktaking',      icon: <AuditOutlined />,   label: 'Kiểm kho' },
+    ],
+  },
+  { key: '/tenant/purchase-orders', icon: <ShoppingCartOutlined />, label: 'Đơn mua' },
+  { key: '/tenant/sales-orders', icon: <FileTextOutlined />, label: 'Đơn bán' },
+  { key: '/tenant/payments', icon: <DollarOutlined />, label: 'Thanh toán' },
+  { key: '/tenant/users', icon: <TeamOutlined />, label: 'Người dùng' },
+  {
+    key: 'settings-group',
+    icon: <SettingOutlined />,
+    label: 'Cài đặt',
+    children: [
+      { key: '/tenant/settings/warehouses', icon: <HomeOutlined />, label: 'Kho' },
+      { key: '/tenant/settings/promotions', icon: <GiftOutlined />, label: 'Khuyến mãi' },
+      { key: '/tenant/settings/loyalty', icon: <StarOutlined />, label: 'Loyalty' },
+      { key: '/tenant/settings/finance', icon: <DollarOutlined />, label: 'Tài chính' },
+      { key: '/tenant/settings/roles', icon: <TeamOutlined />, label: 'Phân quyền' },
+    ],
+  },
 ];
 
 export default function TenantLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { tenantUser, tenantLogout } = useAuth();
+
+  const openKeys = [
+    ...(location.pathname.startsWith('/tenant/settings') ? ['settings-group'] : []),
+    ...(location.pathname.startsWith('/tenant/inventory') ? ['inventory-group'] : []),
+  ];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -38,6 +68,7 @@ export default function TenantLayout() {
         <Menu
           mode="inline"
           selectedKeys={[location.pathname]}
+          defaultOpenKeys={openKeys}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
           style={{ border: 'none' }}

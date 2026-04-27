@@ -25,6 +25,17 @@ export default function StockInForm() {
   const [unitOptions, setUnitOptions] = useState({});
   const items = Form.useWatch('items', form) ?? [];
 
+  const loadProducts = (search = '') => {
+    productsApi.list({ search, limit: 50, isActive: true }).then((res) => {
+      const list = res.data?.data?.data ?? res.data?.data ?? [];
+      const opts = list.map((p) => ({ label: `${p.sku} — ${p.name}`, value: p.id, product: p }));
+      setProductOptions(opts);
+      const map = {};
+      list.forEach((p) => { map[p.id] = p; });
+      setProductMap((prev) => ({ ...prev, ...map }));
+    });
+  };
+
   useEffect(() => {
     warehousesApi.list().then((res) => {
       const list = res.data?.data ?? res.data ?? [];
@@ -34,28 +45,39 @@ export default function StockInForm() {
       const list = res.data?.data?.data ?? res.data?.data ?? [];
       setSuppliers(list.map((s) => ({ label: `${s.code} — ${s.name}`, value: s.id })));
     });
+    loadProducts();
   }, []);
 
   useEffect(() => {
-    if (!productSearch) return;
-    productsApi.list({ search: productSearch, limit: 30 }).then((res) => {
-      const list = res.data?.data?.data ?? res.data?.data ?? [];
-      const opts = list.map((p) => ({ label: `${p.sku} — ${p.name}`, value: p.id, product: p }));
-      setProductOptions(opts);
-      const map = {};
-      list.forEach((p) => { map[p.id] = p; });
-      setProductMap((prev) => ({ ...prev, ...map }));
-    });
+    loadProducts(productSearch);
   }, [productSearch]);
 
-  const handleProductSelect = (productId, index) => {
-    const product = productMap[productId];
-    if (!product) return;
-    const units = (product.units ?? []).map((u) => ({ label: u.name, value: u.id, rate: u.conversionRate }));
-    setUnitOptions((prev) => ({ ...prev, [index]: units }));
-    const baseUnit = product.units?.find((u) => u.isBase);
+  const handleProductSelect = async (productId, index) => {
+    // Fetch full product to get units + prices (list endpoint doesn't include units)
+    let product = productMap[productId];
+    if (!product?.units) {
+      const res = await productsApi.get(productId);
+      product = res.data?.data ?? res.data;
+      setProductMap((prev) => ({ ...prev, [productId]: product }));
+    }
+
+    // Unit options: base unit (null = no conversion) + conversion units
+    const baseOpt = { label: product.baseUnit || 'Đơn vị cơ bản', value: null };
+    const conversionOpts = (product.units ?? [])
+      .filter((u) => !u.isBase)
+      .map((u) => ({ label: `${u.name} (×${Number(u.conversionRate)})`, value: u.id }));
+    setUnitOptions((prev) => ({ ...prev, [index]: [baseOpt, ...conversionOpts] }));
+
+    // Suggest COST price as default unit cost
+    const costPrice = (product.prices ?? []).find((p) => p.priceType === 'COST');
+
     const currentItems = form.getFieldValue('items') ?? [];
-    currentItems[index] = { ...currentItems[index], productId, unitId: baseUnit?.id };
+    currentItems[index] = {
+      ...currentItems[index],
+      productId,
+      unitId: null,
+      ...(costPrice ? { unitCost: Number(costPrice.amount) } : {}),
+    };
     form.setFieldValue('items', currentItems);
   };
 
@@ -95,7 +117,7 @@ export default function StockInForm() {
       expectedDate: expectedDate ? dayjs(expectedDate).format('YYYY-MM-DD') : undefined,
       items: rawItems.map((i) => ({
         productId: i.productId,
-        unitId: i.unitId,
+        ...(i.unitId ? { unitId: i.unitId } : {}),
         quantity: i.quantity,
         unitCost: i.unitCost,
         batchNumber: i.batchNumber,

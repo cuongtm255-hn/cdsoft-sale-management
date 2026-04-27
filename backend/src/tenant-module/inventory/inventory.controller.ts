@@ -10,7 +10,7 @@ import {
   CreateStockOutDto, CreateAdjustmentDto,
   CreateTransferDto, ReceiveTransferDto,
   CreateStocktakingDto, CompleteStocktakingDto,
-  InventoryFilterDto,
+  InventoryFilterDto, StockReceiptFilterDto,
 } from './dto/inventory.dto';
 
 @ApiTags('Tenant / Inventory')
@@ -50,8 +50,8 @@ export class InventoryController {
 
   @Get('stock-receipts')
   @ApiOperation({ summary: 'List stock receipts' })
-  getReceipts(@Query('warehouseId') warehouseId?: string) {
-    return this.service.getReceipts(warehouseId);
+  getReceipts(@Query() filter: StockReceiptFilterDto) {
+    return this.service.getReceipts(filter);
   }
 
   @Get('stock-receipts/:id')
