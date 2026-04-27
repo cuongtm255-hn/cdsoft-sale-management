@@ -22,6 +22,8 @@ import { InvoicesController } from './invoices/invoices.controller';
 import { InvoicesService } from './invoices/invoices.service';
 import { LoyaltyController } from './loyalty/loyalty.controller';
 import { LoyaltyService } from './loyalty/loyalty.service';
+import { ReportsController, CommissionsController } from './reports/reports.controller';
+import { ReportsService } from './reports/reports.service';
 import { JwtStrategy } from '../common/strategies/jwt.strategy';
 
 @Module({
@@ -34,7 +36,7 @@ import { JwtStrategy } from '../common/strategies/jwt.strategy';
       inject: [ConfigService],
     }),
   ],
-  controllers: [TenantAuthController, ProductsController, UsersController, CategoriesController, CustomersController, SuppliersController, InventoryController, WarehousesController, OrdersController, InvoicesController, LoyaltyController],
-  providers: [TenantAuthService, ProductsService, UsersService, CategoriesService, CustomersService, SuppliersService, InventoryService, OrdersService, InvoicesService, LoyaltyService, JwtStrategy],
+  controllers: [TenantAuthController, ProductsController, UsersController, CategoriesController, CustomersController, SuppliersController, InventoryController, WarehousesController, OrdersController, InvoicesController, LoyaltyController, ReportsController, CommissionsController],
+  providers: [TenantAuthService, ProductsService, UsersService, CategoriesService, CustomersService, SuppliersService, InventoryService, OrdersService, InvoicesService, LoyaltyService, ReportsService, JwtStrategy],
 })
 export class TenantAppModule {}

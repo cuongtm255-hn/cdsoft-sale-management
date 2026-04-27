@@ -46,6 +46,11 @@ import AccountsReceivable from '@tenant/pages/AccountsReceivable';
 import AccountsPayable from '@tenant/pages/AccountsPayable';
 import CashManagement from '@tenant/pages/CashManagement';
 import TenantUsers from '@tenant/pages/Users';
+import ReportSales from '@tenant/pages/ReportSales';
+import ReportInventory from '@tenant/pages/ReportInventory';
+import ReportFinance from '@tenant/pages/ReportFinance';
+import ReportKPI from '@tenant/pages/ReportKPI';
+import ReportCommissions from '@tenant/pages/ReportCommissions';
 
 export default function AppRouter() {
   return (
@@ -118,6 +123,11 @@ export default function AppRouter() {
         <Route path="finance/ap" element={<AccountsPayable />} />
         <Route path="finance/cash" element={<CashManagement />} />
         <Route path="users" element={<TenantUsers />} />
+        <Route path="reports/sales"       element={<ReportSales />} />
+        <Route path="reports/inventory"   element={<ReportInventory />} />
+        <Route path="reports/finance"     element={<ReportFinance />} />
+        <Route path="reports/kpi"         element={<ReportKPI />} />
+        <Route path="reports/commissions" element={<ReportCommissions />} />
       </Route>
     </Routes>
   );

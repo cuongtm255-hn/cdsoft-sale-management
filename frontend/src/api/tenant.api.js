@@ -161,6 +161,20 @@ export const loyaltyApi = {
   transactions: (params) => tenantApi.get('/tenant/loyalty/transactions', { params }),
 };
 
+export const reportsApi = {
+  sales:           (params) => tenantApi.get('/tenant/reports/sales', { params }),
+  profitByProduct: (params) => tenantApi.get('/tenant/reports/sales/profit-by-product', { params }),
+  movement:        (params) => tenantApi.get('/tenant/reports/inventory/movement', { params }),
+  deadstock:       (params) => tenantApi.get('/tenant/reports/inventory/deadstock', { params }),
+  abcAnalysis:     (params) => tenantApi.get('/tenant/reports/inventory/abc-analysis', { params }),
+  pnl:             (params) => tenantApi.get('/tenant/reports/finance/pnl', { params }),
+  cashflow:        (params) => tenantApi.get('/tenant/reports/finance/cashflow', { params }),
+  commissions:     (params) => tenantApi.get('/tenant/reports/commissions', { params }),
+  kpi:             (params) => tenantApi.get('/tenant/reports/kpi', { params }),
+  getCommissionConfig:    ()    => tenantApi.get('/tenant/commissions/config'),
+  updateCommissionConfig: (data) => tenantApi.put('/tenant/commissions/config', data),
+};
+
 export const dashboardApi = {
   stats: () => tenantApi.get('/tenant/dashboard/stats'),
 };
