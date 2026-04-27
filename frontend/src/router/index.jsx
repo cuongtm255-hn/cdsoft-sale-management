@@ -55,6 +55,8 @@ import ReportInventory from '@tenant/pages/ReportInventory';
 import ReportFinance from '@tenant/pages/ReportFinance';
 import ReportKPI from '@tenant/pages/ReportKPI';
 import ReportCommissions from '@tenant/pages/ReportCommissions';
+import ExpiryAlerts from '@tenant/pages/inventory/ExpiryAlerts';
+import WarrantyLookup from '@tenant/pages/serial/WarrantyLookup';
 
 export default function AppRouter() {
   return (
@@ -136,6 +138,8 @@ export default function AppRouter() {
         <Route path="reports/finance"     element={<ReportFinance />} />
         <Route path="reports/kpi"         element={<ReportKPI />} />
         <Route path="reports/commissions" element={<ReportCommissions />} />
+        <Route path="inventory/expiry-alerts" element={<ExpiryAlerts />} />
+        <Route path="serial/warranty-lookup"  element={<WarrantyLookup />} />
       </Route>
     </Routes>
   );

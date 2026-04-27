@@ -175,6 +175,14 @@ export const reportsApi = {
   updateCommissionConfig: (data) => tenantApi.put('/tenant/commissions/config', data),
 };
 
+export const serialApi = {
+  warrantyLookup: (serial) => tenantApi.get('/tenant/serial/warranty-lookup', { params: { serial } }),
+  listByProduct:  (params) => tenantApi.get(`/tenant/serial/${params.productId}`, { params }),
+  listInStock:    (params) => tenantApi.get('/tenant/serial/in-stock', { params }),
+  expiryAlerts:   (params) => tenantApi.get('/tenant/inventory/expiry-alerts', { params }),
+  lotsByProduct:  (productId, params) => tenantApi.get(`/tenant/inventory/lots/${productId}`, { params }),
+};
+
 export const rolesApi = {
   list:              ()           => tenantApi.get('/tenant/roles'),
   listPermissions:   ()           => tenantApi.get('/tenant/roles/permissions'),

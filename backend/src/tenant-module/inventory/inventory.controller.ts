@@ -181,4 +181,24 @@ export class InventoryController {
   ) {
     return this.service.completeStocktaking(id, dto, user.id);
   }
+
+  // ─── Expiry alerts ────────────────────────────────────────────────────────
+
+  @Get('expiry-alerts')
+  @ApiOperation({ summary: 'Get inventory lots expiring within N days' })
+  getExpiryAlerts(
+    @Query('daysAhead') daysAhead?: number,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.service.getExpiryAlerts(daysAhead ? Number(daysAhead) : 90, warehouseId);
+  }
+
+  @Get('lots/:productId')
+  @ApiOperation({ summary: 'Get inventory lots for a product' })
+  getLotsByProduct(
+    @Param('productId') productId: string,
+    @Query('warehouseId') warehouseId?: string,
+  ) {
+    return this.service.getInventoryLotsByProduct(productId, warehouseId);
+  }
 }

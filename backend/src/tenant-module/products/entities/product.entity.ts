@@ -43,6 +43,15 @@ export class Product extends BaseEntity {
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   stockQuantity: number;
 
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
+  costPrice: number;
+
+  @Column({ default: false })
+  trackBatch: boolean; // Bật theo dõi số lô/HSD
+
+  @Column({ default: false })
+  trackSerial: boolean; // Bật theo dõi Serial/IMEI
+
   @Column({ default: true })
   isActive: boolean;
 

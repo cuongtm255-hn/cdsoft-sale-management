@@ -598,4 +598,55 @@ export class InventoryService {
     if (warehouseId) qb.andWhere('tx.warehouseId = :wid', { wid: warehouseId });
     return qb.getMany();
   }
+
+  async getExpiryAlerts(daysAhead = 90, warehouseId?: string) {
+    const ds       = await this.getDs();
+    const deadline = new Date();
+    deadline.setDate(deadline.getDate() + daysAhead);
+
+    const rows = await ds.query(`
+      SELECT
+        l.id, l.batch_number AS batchNumber,
+        l.expiry_date AS expiryDate,
+        l.remaining_qty AS remainingQty,
+        l.cost_per_unit AS costPerUnit,
+        l.received_at AS receivedAt,
+        p.id AS productId, p.sku, p.name AS productName,
+        w.id AS warehouseId, w.name AS warehouseName,
+        DATEDIFF(l.expiry_date, NOW()) AS daysUntilExpiry
+      FROM inventory_lots l
+      JOIN products p   ON l.product_id   = p.id
+      JOIN warehouses w ON l.warehouse_id = w.id
+      WHERE l.remaining_qty > 0
+        AND l.expiry_date IS NOT NULL
+        AND l.expiry_date <= ?
+        AND l.deleted_at IS NULL
+        ${warehouseId ? `AND l.warehouse_id = '${warehouseId}'` : ''}
+      ORDER BY l.expiry_date ASC
+    `, [deadline]);
+
+    return rows.map((r: any) => ({
+      id:              r.id,
+      batchNumber:     r.batchNumber,
+      expiryDate:      r.expiryDate,
+      remainingQty:    +Number(r.remainingQty).toFixed(4),
+      costPerUnit:     +Number(r.costPerUnit).toFixed(2),
+      daysUntilExpiry: Number(r.daysUntilExpiry),
+      product:         { id: r.productId, sku: r.sku, name: r.productName },
+      warehouse:       { id: r.warehouseId, name: r.warehouseName },
+    }));
+  }
+
+  async getInventoryLotsByProduct(productId: string, warehouseId?: string) {
+    const ds   = await this.getDs();
+    const rows = await ds.query(`
+      SELECT l.*, w.name AS warehouseName
+      FROM inventory_lots l
+      JOIN warehouses w ON l.warehouse_id = w.id
+      WHERE l.product_id = ? AND l.deleted_at IS NULL
+        ${warehouseId ? `AND l.warehouse_id = '${warehouseId}'` : ''}
+      ORDER BY l.expiry_date ASC, l.received_at ASC
+    `, [productId]);
+    return rows;
+  }
 }
