@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { TenantAuthController } from './auth/tenant-auth.controller';
@@ -24,6 +25,13 @@ import { LoyaltyController } from './loyalty/loyalty.controller';
 import { LoyaltyService } from './loyalty/loyalty.service';
 import { ReportsController, CommissionsController } from './reports/reports.controller';
 import { ReportsService } from './reports/reports.service';
+import { RolesController } from './roles/roles.controller';
+import { RolesService } from './roles/roles.service';
+import { AuditLogController } from './audit-log/audit-log.controller';
+import { AuditLogService } from './audit-log/audit-log.service';
+import { AuditLogInterceptor } from './audit-log/audit-log.interceptor';
+import { FinanceController } from './finance/finance.controller';
+import { FinanceService } from './finance/finance.service';
 import { JwtStrategy } from '../common/strategies/jwt.strategy';
 
 @Module({
@@ -36,7 +44,27 @@ import { JwtStrategy } from '../common/strategies/jwt.strategy';
       inject: [ConfigService],
     }),
   ],
-  controllers: [TenantAuthController, ProductsController, UsersController, CategoriesController, CustomersController, SuppliersController, InventoryController, WarehousesController, OrdersController, InvoicesController, LoyaltyController, ReportsController, CommissionsController],
-  providers: [TenantAuthService, ProductsService, UsersService, CategoriesService, CustomersService, SuppliersService, InventoryService, OrdersService, InvoicesService, LoyaltyService, ReportsService, JwtStrategy],
+  controllers: [
+    TenantAuthController,
+    ProductsController, UsersController, CategoriesController,
+    CustomersController, SuppliersController,
+    InventoryController, WarehousesController,
+    OrdersController, InvoicesController,
+    LoyaltyController,
+    ReportsController, CommissionsController,
+    RolesController, AuditLogController,
+    FinanceController,
+  ],
+  providers: [
+    TenantAuthService, ProductsService, UsersService, CategoriesService,
+    CustomersService, SuppliersService, InventoryService,
+    OrdersService, InvoicesService,
+    LoyaltyService,
+    ReportsService,
+    RolesService, AuditLogService,
+    FinanceService,
+    JwtStrategy,
+    { provide: APP_INTERCEPTOR, useClass: AuditLogInterceptor },
+  ],
 })
 export class TenantAppModule {}

@@ -14,6 +14,7 @@ function parseJwt(token) {
 const initialState = {
   platformUser: null,
   tenantUser: null,
+  tenantPermissions: new Set(),
 };
 
 function authReducer(state, action) {
@@ -22,10 +23,12 @@ function authReducer(state, action) {
       return { ...state, platformUser: action.payload };
     case 'TENANT_LOGIN':
       return { ...state, tenantUser: action.payload };
+    case 'TENANT_PERMISSIONS':
+      return { ...state, tenantPermissions: new Set(action.payload) };
     case 'PLATFORM_LOGOUT':
       return { ...state, platformUser: null };
     case 'TENANT_LOGOUT':
-      return { ...state, tenantUser: null };
+      return { ...state, tenantUser: null, tenantPermissions: new Set() };
     default:
       return state;
   }
@@ -51,6 +54,10 @@ export function AuthProvider({ children }) {
     dispatch({ type: 'TENANT_LOGIN', payload: parseJwt(token) });
   };
 
+  const setTenantPermissions = (permissions) => {
+    dispatch({ type: 'TENANT_PERMISSIONS', payload: permissions });
+  };
+
   const platformLogout = () => {
     localStorage.removeItem(PLATFORM_TOKEN_KEY);
     dispatch({ type: 'PLATFORM_LOGOUT' });
@@ -62,7 +69,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, platformLogin, tenantLogin, platformLogout, tenantLogout }}>
+    <AuthContext.Provider value={{ ...state, platformLogin, tenantLogin, platformLogout, tenantLogout, setTenantPermissions }}>
       {children}
     </AuthContext.Provider>
   );

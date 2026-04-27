@@ -175,6 +175,27 @@ export const reportsApi = {
   updateCommissionConfig: (data) => tenantApi.put('/tenant/commissions/config', data),
 };
 
+export const rolesApi = {
+  list:              ()           => tenantApi.get('/tenant/roles'),
+  listPermissions:   ()           => tenantApi.get('/tenant/roles/permissions'),
+  create:            (data)       => tenantApi.post('/tenant/roles', data),
+  updatePermissions: (id, perms)  => tenantApi.put(`/tenant/roles/${id}/permissions`, { permissions: perms }),
+  getMyPermissions:  ()           => tenantApi.get('/tenant/auth/permissions'),
+};
+
+export const auditApi = {
+  list: (params) => tenantApi.get('/tenant/audit-logs', { params }),
+};
+
+export const financeApi = {
+  cashFunds:          ()     => tenantApi.get('/tenant/finance/cash-funds'),
+  bankAccounts:       ()     => tenantApi.get('/tenant/finance/bank-accounts'),
+  createDisbursement: (data) => tenantApi.post('/tenant/finance/disbursements', data),
+  listDisbursements:  (params) => tenantApi.get('/tenant/finance/disbursements', { params }),
+  approve:            (id)   => tenantApi.patch(`/tenant/finance/disbursements/${id}/approve`),
+  reject:             (id, reason) => tenantApi.patch(`/tenant/finance/disbursements/${id}/reject`, { reason }),
+};
+
 export const dashboardApi = {
   stats: () => tenantApi.get('/tenant/dashboard/stats'),
 };

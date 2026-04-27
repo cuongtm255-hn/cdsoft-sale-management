@@ -46,6 +46,10 @@ import AccountsReceivable from '@tenant/pages/AccountsReceivable';
 import AccountsPayable from '@tenant/pages/AccountsPayable';
 import CashManagement from '@tenant/pages/CashManagement';
 import TenantUsers from '@tenant/pages/Users';
+import SettingsRoles from '@tenant/pages/settings/Roles';
+import SettingsAuditLogs from '@tenant/pages/settings/AuditLogs';
+import SettingsWarehouses from '@tenant/pages/settings/Warehouses';
+import SettingsFinance from '@tenant/pages/settings/Finance';
 import ReportSales from '@tenant/pages/ReportSales';
 import ReportInventory from '@tenant/pages/ReportInventory';
 import ReportFinance from '@tenant/pages/ReportFinance';
@@ -123,6 +127,10 @@ export default function AppRouter() {
         <Route path="finance/ap" element={<AccountsPayable />} />
         <Route path="finance/cash" element={<CashManagement />} />
         <Route path="users" element={<TenantUsers />} />
+        <Route path="settings/roles"      element={<SettingsRoles />} />
+        <Route path="settings/audit-logs" element={<SettingsAuditLogs />} />
+        <Route path="settings/warehouses" element={<SettingsWarehouses />} />
+        <Route path="settings/finance"    element={<SettingsFinance />} />
         <Route path="reports/sales"       element={<ReportSales />} />
         <Route path="reports/inventory"   element={<ReportInventory />} />
         <Route path="reports/finance"     element={<ReportFinance />} />
