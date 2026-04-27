@@ -28,22 +28,26 @@ export default function StockOutForm() {
   const warehouseId = Form.useWatch('warehouseId', form);
   const issueType = Form.useWatch('issueType', form);
 
-  useEffect(() => {
-    warehousesApi.list().then((res) => {
-      const list = res.data?.data ?? res.data ?? [];
-      setWarehouses(list.map((w) => ({ label: w.name, value: w.id })));
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!productSearch) return;
-    productsApi.list({ search: productSearch, limit: 30 }).then((res) => {
+  const loadProducts = (search = '') => {
+    productsApi.list({ search, limit: 50, isActive: true }).then((res) => {
       const list = res.data?.data?.data ?? res.data?.data ?? [];
       setProductOptions(list.map((p) => ({ label: `${p.sku} — ${p.name}`, value: p.id })));
       const map = {};
       list.forEach((p) => { map[p.id] = p; });
       setProductMap((prev) => ({ ...prev, ...map }));
     });
+  };
+
+  useEffect(() => {
+    warehousesApi.list().then((res) => {
+      const list = res.data?.data ?? res.data ?? [];
+      setWarehouses(list.map((w) => ({ label: w.name, value: w.id })));
+    });
+    loadProducts();
+  }, []);
+
+  useEffect(() => {
+    loadProducts(productSearch);
   }, [productSearch]);
 
   const handleProductSelect = async (productId, index) => {
