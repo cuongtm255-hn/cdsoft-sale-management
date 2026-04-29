@@ -2,8 +2,10 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, DataSourceOptions } from 'typeorm';
-import * as path from 'path';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { TenantSnakeCase1745800000001 } from '../database/tenant-migrations/1745800000001-TenantSnakeCase';
+import { CreateMissingTables1745800000002 } from '../database/tenant-migrations/1745800000002-CreateMissingTables';
+import { CreateStockIssues1745800000003 } from '../database/tenant-migrations/1745800000003-CreateStockIssues';
 
 export interface TenantDbConfig {
   tenantCode: string;
@@ -33,6 +35,7 @@ export class TenantDataSourceManager {
 
   private async createAndCache(tenantCode: string): Promise<DataSource> {
     const dbConfig = await this.resolveTenantDbConfig(tenantCode);
+    const useSsl = this.config.get<boolean>('database.tenantDbSsl');
     const options: DataSourceOptions = {
       type: 'mysql',
       host: dbConfig.host,
@@ -40,8 +43,9 @@ export class TenantDataSourceManager {
       username: dbConfig.username,
       password: dbConfig.password,
       database: dbConfig.database,
+      ssl: useSsl ? { rejectUnauthorized: false } : false,
       entities: [__dirname + '/../tenant-module/**/*.entity{.ts,.js}'],
-      migrations: [path.resolve(__dirname, '../database/tenant-migrations/*{.ts,.js}')],
+      migrations: [TenantSnakeCase1745800000001, CreateMissingTables1745800000002, CreateStockIssues1745800000003],
       migrationsRun: true,
       migrationsTableName: 'typeorm_migrations',
       synchronize: false,

@@ -32,14 +32,15 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('app.port', 8080);
 
-  await app.listen(port);
-  console.log(`Application running on port ${port}`);
-  await app.init();
+  if (process.env.VERCEL) {
+    // Vercel serverless: init only, no TCP listen
+    await app.init();
+  } else {
+    await app.listen(port);
+    console.log(`Application running on port ${port}`);
+  }
 
-  // for vercel
-  const expressApp = app.getHttpAdapter().getInstance();
-  return expressApp;
+  return app.getHttpAdapter().getInstance();
 }
 
 export default bootstrap();
-// bootstrap();

@@ -2,6 +2,9 @@ import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { InitPlatformSchema1700000000000 } from './database/migrations/1700000000000-InitPlatformSchema';
+import { AddStocktakingAndInventoryLots1745700000000 } from './database/migrations/1745700000000-AddStocktakingAndInventoryLots';
+import { PlatformSnakeCase1745800000000 } from './database/migrations/1745800000000-PlatformSnakeCase';
 import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
@@ -27,9 +30,9 @@ import { TenantContextMiddleware } from './tenant/tenant-context.middleware';
         username: config.get<string>('database.username'),
         password: config.get<string>('database.password'),
         database: config.get<string>('database.name'),
+        ssl: config.get<boolean>('database.ssl') ? { rejectUnauthorized: false } : false,
         entities: [__dirname + '/platform/**/*.entity{.ts,.js}'],
-        migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
-        // synchronize: false — dùng migration thay vì auto-sync
+        migrations: [InitPlatformSchema1700000000000, AddStocktakingAndInventoryLots1745700000000, PlatformSnakeCase1745800000000],
         synchronize: false,
         migrationsRun: false,
         logging: config.get('app.env') === 'development',

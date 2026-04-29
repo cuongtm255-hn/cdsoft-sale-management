@@ -22,6 +22,7 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USERNAME || 'root',
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME || 'salesplatform_system',
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
 
   entities: [path.resolve(__dirname, '../platform/**/*.entity{.ts,.js}')],
   migrations: [path.resolve(__dirname, './migrations/*{.ts,.js}')],

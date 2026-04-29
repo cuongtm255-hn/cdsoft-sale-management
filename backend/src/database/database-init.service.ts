@@ -16,7 +16,6 @@ export class DatabaseInitService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     await this.ensureDatabaseExists();
-    await this.runMigrations();
     await this.seedSuperAdmin();
   }
 
@@ -37,31 +36,7 @@ export class DatabaseInitService implements OnModuleInit {
   }
 
   // ─────────────────────────────────────────────
-  // 2. Chạy các pending migrations
-  // ─────────────────────────────────────────────
-  private async runMigrations(): Promise<void> {
-    try {
-      const pendingMigrations = await this.dataSource.showMigrations();
-      if (!pendingMigrations) {
-        this.logger.log('No pending migrations. Database is up to date.');
-        return;
-      }
-
-      this.logger.log('Running pending migrations...');
-      const ran = await this.dataSource.runMigrations({ transaction: 'each' });
-      if (ran.length > 0) {
-        this.logger.log(`Successfully ran ${ran.length} migration(s): ${ran.map((m) => m.name).join(', ')}`);
-      } else {
-        this.logger.log('All migrations are already up to date.');
-      }
-    } catch (err) {
-      this.logger.error('Migration failed', err);
-      throw err;
-    }
-  }
-
-  // ─────────────────────────────────────────────
-  // 3. Seed super admin (chỉ tạo nếu chưa có)
+  // 2. Seed super admin (chỉ tạo nếu chưa có)
   // ─────────────────────────────────────────────
   private async seedSuperAdmin(): Promise<void> {
     const username = this.config.get<string>('seed.superAdminUsername');
