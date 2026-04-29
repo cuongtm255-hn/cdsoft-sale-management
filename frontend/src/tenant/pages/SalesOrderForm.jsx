@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Form, Select, Button, Space, Divider, Row, Col, Typography, message, Modal,
+  Form, Select, Input, Button, Space, Divider, Row, Col, Typography, message, Modal,
 } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PageHeader from '@shared/components/PageHeader';
@@ -98,8 +98,7 @@ export default function SalesOrderForm() {
     };
 
     try {
-      const res = await createOrder(payload);
-      const order = res?.data?.data ?? res?.data;
+      const order = await createOrder(payload);
       if (!order?.id) throw new Error('No order id returned');
 
       if (confirmAfterCreate) {
@@ -174,7 +173,7 @@ export default function SalesOrderForm() {
           </Col>
           <Col span={12}>
             <Form.Item name="notes" label="Ghi chú">
-              <Select mode={undefined} placeholder="Nhập ghi chú..." />
+              <Input placeholder="Nhập ghi chú..." />
             </Form.Item>
           </Col>
         </Row>

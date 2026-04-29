@@ -52,7 +52,8 @@ export class ProductsService {
     const enriched = data.map((p) => ({
       ...p,
       isLowStock: p.minStockLevel > 0 && p.stockQuantity <= p.minStockLevel,
-      retailPrice: p.prices?.find((pr) => pr.priceType === 'RETAIL')?.amount,
+      costPrice: Number(p.prices?.find((pr) => pr.priceType === 'COST')?.amount ?? p.costPrice ?? 0),
+      retailPrice: Number(p.prices?.find((pr) => pr.priceType === 'RETAIL')?.amount ?? 0),
     }));
 
     return { data: enriched, total, page: filter.page, limit: filter.limit };

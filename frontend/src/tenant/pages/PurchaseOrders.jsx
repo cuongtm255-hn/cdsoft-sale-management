@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Button, Space, Input, Select, Typography, message } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import PageHeader from '@shared/components/PageHeader';
@@ -62,28 +63,25 @@ export default function PurchaseOrders() {
     {
       title: 'Nhà cung cấp',
       key: 'supplier',
-      render: (_, row) => row.supplier?.name ?? row.supplierId ?? '—',
+      render: (_, row) => row.supplier_name ?? row.supplier_code ?? '—',
     },
     {
       title: 'Tổng tiền',
-      dataIndex: 'totalAmount',
       key: 'total',
       width: 140,
-      render: (v) => <Typography.Text strong>{fmt(v)}</Typography.Text>,
+      render: (_, row) => <Typography.Text strong>{fmt(row.total_amount ?? row.totalAmount)}</Typography.Text>,
     },
     {
       title: 'Trạng thái',
-      dataIndex: 'status',
       key: 'status',
       width: 130,
-      render: (v) => <OrderStatusBadge status={v} />,
+      render: (_, row) => <OrderStatusBadge status={row.status} />,
     },
     {
       title: 'Ngày tạo',
-      dataIndex: 'createdAt',
       key: 'date',
       width: 110,
-      render: (v) => dayjs(v).format('DD/MM/YYYY'),
+      render: (_, row) => dayjs(row.created_at ?? row.createdAt).format('DD/MM/YYYY'),
     },
     {
       title: 'Thao tác',
@@ -104,7 +102,10 @@ export default function PurchaseOrders() {
 
   return (
     <div>
-      <PageHeader title="Đơn mua hàng" />
+      <PageHeader
+        title="Đơn mua hàng"
+        extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/tenant/purchase-orders/new')}>Tạo đơn mua hàng</Button>}
+      />
 
       <Space style={{ marginBottom: 16 }} wrap>
         <Input.Search

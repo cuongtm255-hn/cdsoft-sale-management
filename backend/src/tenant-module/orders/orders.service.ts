@@ -67,47 +67,68 @@ export class OrdersService {
 
   async listSalesOrders(filter: OrderFilterDto, userId: string) {
     const ds = await this.getDs();
-    const qb = ds.getRepository(Order)
-      .createQueryBuilder('o')
-      .leftJoinAndMapOne('o.customer', 'customers', 'c', 'c.id = o.customer_id AND c.deleted_at IS NULL')
-      .leftJoinAndMapOne('o.salesRep', 'users', 'u', 'u.id = o.sales_rep_id AND u.deleted_at IS NULL')
-      .where('o.type = :type', { type: OrderType.SALES })
-      .andWhere('o.deleted_at IS NULL');
-
-    if (filter.status) qb.andWhere('o.status = :status', { status: filter.status });
-    if (filter.customerId) qb.andWhere('o.customer_id = :customerId', { customerId: filter.customerId });
-    if (filter.salesRepId) qb.andWhere('o.sales_rep_id = :salesRepId', { salesRepId: filter.salesRepId });
-    if (filter.from) qb.andWhere('o.created_at >= :from', { from: filter.from });
-    if (filter.to) qb.andWhere('o.created_at <= :to', { to: `${filter.to} 23:59:59` });
-    if (filter.search) qb.andWhere('o.code LIKE :search', { search: `%${filter.search}%` });
-
     const page = Number(filter.page ?? 1);
     const limit = Number(filter.limit ?? 20);
-    qb.orderBy('o.created_at', 'DESC').skip((page - 1) * limit).take(limit);
+    const offset = (page - 1) * limit;
 
-    const [items, total] = await qb.getManyAndCount();
-    return { data: items, meta: { total, page, limit } };
+    const conditions: string[] = ["o.type = 'SALES'", 'o.deleted_at IS NULL'];
+    const params: any[] = [];
+
+    if (filter.status) { conditions.push('o.status = ?'); params.push(filter.status); }
+    if (filter.customerId) { conditions.push('o.customer_id = ?'); params.push(filter.customerId); }
+    if (filter.salesRepId) { conditions.push('o.sales_rep_id = ?'); params.push(filter.salesRepId); }
+    if (filter.from) { conditions.push('o.created_at >= ?'); params.push(filter.from); }
+    if (filter.to) { conditions.push('o.created_at <= ?'); params.push(`${filter.to} 23:59:59`); }
+    if (filter.search) { conditions.push('o.code LIKE ?'); params.push(`%${filter.search}%`); }
+
+    const where = conditions.join(' AND ');
+
+    const [rows, countResult] = await Promise.all([
+      ds.query(
+        `SELECT o.*, c.code as customer_code, c.name as customer_name,
+                u.full_name as sales_rep_name
+         FROM orders o
+         LEFT JOIN customers c ON c.id = o.customer_id AND c.deleted_at IS NULL
+         LEFT JOIN users u ON u.id = o.sales_rep_id AND u.deleted_at IS NULL
+         WHERE ${where}
+         ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
+        [...params, limit, offset],
+      ),
+      ds.query(`SELECT COUNT(*) as total FROM orders o WHERE ${where}`, params),
+    ]);
+
+    return { data: rows, meta: { total: Number(countResult[0]?.total ?? 0), page, limit } };
   }
 
   async listPurchaseOrders(filter: OrderFilterDto) {
     const ds = await this.getDs();
-    const qb = ds.getRepository(Order)
-      .createQueryBuilder('o')
-      .leftJoinAndMapOne('o.supplier', 'suppliers', 's', 's.id = o.supplier_id AND s.deleted_at IS NULL')
-      .where('o.type = :type', { type: OrderType.PURCHASE })
-      .andWhere('o.deleted_at IS NULL');
-
-    if (filter.status) qb.andWhere('o.status = :status', { status: filter.status });
-    if (filter.search) qb.andWhere('o.code LIKE :search', { search: `%${filter.search}%` });
-    if (filter.from) qb.andWhere('o.created_at >= :from', { from: filter.from });
-    if (filter.to) qb.andWhere('o.created_at <= :to', { to: `${filter.to} 23:59:59` });
-
     const page = Number(filter.page ?? 1);
     const limit = Number(filter.limit ?? 20);
-    qb.orderBy('o.created_at', 'DESC').skip((page - 1) * limit).take(limit);
+    const offset = (page - 1) * limit;
 
-    const [items, total] = await qb.getManyAndCount();
-    return { data: items, meta: { total, page, limit } };
+    const conditions: string[] = ["o.type = 'PURCHASE'", 'o.deleted_at IS NULL'];
+    const params: any[] = [];
+
+    if (filter.status) { conditions.push('o.status = ?'); params.push(filter.status); }
+    if (filter.search) { conditions.push('o.code LIKE ?'); params.push(`%${filter.search}%`); }
+    if (filter.from) { conditions.push('o.created_at >= ?'); params.push(filter.from); }
+    if (filter.to) { conditions.push('o.created_at <= ?'); params.push(`${filter.to} 23:59:59`); }
+
+    const where = conditions.join(' AND ');
+
+    const [rows, countResult] = await Promise.all([
+      ds.query(
+        `SELECT o.*, s.code as supplier_code, s.name as supplier_name
+         FROM orders o
+         LEFT JOIN suppliers s ON s.id = o.supplier_id AND s.deleted_at IS NULL
+         WHERE ${where}
+         ORDER BY o.created_at DESC LIMIT ? OFFSET ?`,
+        [...params, limit, offset],
+      ),
+      ds.query(`SELECT COUNT(*) as total FROM orders o WHERE ${where}`, params),
+    ]);
+
+    return { data: rows, meta: { total: Number(countResult[0]?.total ?? 0), page, limit } };
   }
 
   // ─── Get One ──────────────────────────────────────────────────────────────
