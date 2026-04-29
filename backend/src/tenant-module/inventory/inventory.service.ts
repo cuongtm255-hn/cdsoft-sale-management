@@ -14,13 +14,16 @@ import { StockTransfer, TransferStatus } from './entities/stock-transfer.entity'
 import { StockTransferItem } from './entities/stock-transfer-item.entity';
 import { StocktakingSession, StocktakingStatus } from './entities/stocktaking-session.entity';
 import { StocktakingItem } from './entities/stocktaking-item.entity';
+import { StockIssue, IssueStatus, IssueType } from './entities/stock-issue.entity';
+import { StockIssueItem } from './entities/stock-issue-item.entity';
 import {
   CreateWarehouseDto, UpdateWarehouseDto,
-  CreateStockReceiptDto, ConfirmStockReceiptDto,
+  CreateStockReceiptDto, ConfirmStockReceiptDto, UpdateStockReceiptDto,
   CreateStockOutDto, CreateAdjustmentDto,
   CreateTransferDto, ReceiveTransferDto,
   CreateStocktakingDto, CompleteStocktakingDto,
   InventoryFilterDto, StockReceiptFilterDto, StockOutFilterDto,
+  CreateStockIssueDto, UpdateStockIssueDto, StockIssueFilterDto,
 } from './dto/inventory.dto';
 
 @Injectable()
@@ -286,7 +289,223 @@ export class InventoryService {
     return this.getReceipt(id);
   }
 
-  // ─── Stock Out ────────────────────────────────────────────────────────────
+  async updateReceipt(id: string, dto: UpdateStockReceiptDto) {
+    const ds = await this.getDs();
+    const receipt = await this.loadReceiptEntity(id);
+    if (receipt.status !== ReceiptStatus.DRAFT) throw new BadRequestException('RECEIPT_NOT_DRAFT');
+
+    const receiptRepo = ds.getRepository(StockReceipt);
+    const itemRepo = ds.getRepository(StockReceiptItem);
+
+    if (dto.supplierId !== undefined) receipt.supplierId = dto.supplierId;
+    if (dto.warehouseId !== undefined) receipt.warehouseId = dto.warehouseId;
+    if (dto.refCode !== undefined) receipt.refCode = dto.refCode;
+    if (dto.expectedDate !== undefined) receipt.expectedDate = dto.expectedDate;
+    if (dto.notes !== undefined) receipt.notes = dto.notes;
+
+    if (dto.items !== undefined) {
+      receipt.totalAmount = dto.items.reduce((sum, i) => sum + i.quantity * i.unitCost, 0);
+      const unitIds = dto.items.filter((i) => i.unitId).map((i) => i.unitId!);
+      let unitMap: Record<string, number> = {};
+      if (unitIds.length) {
+        const rows = await ds.query(
+          `SELECT id, conversion_rate FROM product_units WHERE id IN (${unitIds.map(() => '?').join(',')})`,
+          unitIds,
+        );
+        unitMap = Object.fromEntries(rows.map((u: any) => [u.id, parseFloat(u.conversion_rate)]));
+      }
+      await itemRepo.delete({ receiptId: id });
+      const newItems = dto.items.map((i) => itemRepo.create({
+        receiptId: id, productId: i.productId, unitId: i.unitId,
+        quantity: i.quantity, qtyInBase: i.quantity * (unitMap[i.unitId!] ?? 1),
+        unitCost: i.unitCost, batchNumber: i.batchNumber, expiryDate: i.expiryDate,
+      }));
+      await itemRepo.save(newItems);
+    }
+
+    await receiptRepo.save(receipt);
+    return this.getReceipt(id);
+  }
+
+  // ─── Stock Issues (DRAFT → CONFIRMED flow) ────────────────────────────────
+
+  private async loadIssueEntity(id: string): Promise<StockIssue> {
+    const repo = await this.getRepo(StockIssue);
+    const issue = await repo.createQueryBuilder('i')
+      .leftJoinAndSelect('i.items', 'items')
+      .where('i.id = :id', { id })
+      .getOne();
+    if (!issue) throw new NotFoundException(`Issue ${id} not found`);
+    return issue;
+  }
+
+  private async buildUnitMap(ds: DataSource, unitIds: string[]): Promise<Record<string, number>> {
+    if (!unitIds.length) return {};
+    const rows = await ds.query(
+      `SELECT id, conversion_rate FROM product_units WHERE id IN (${unitIds.map(() => '?').join(',')})`,
+      unitIds,
+    );
+    return Object.fromEntries(rows.map((u: any) => [u.id, parseFloat(u.conversion_rate)]));
+  }
+
+  async getIssues(filter: StockIssueFilterDto) {
+    const repo = await this.getRepo(StockIssue);
+    const qb = repo.createQueryBuilder('i').orderBy('i.createdAt', 'DESC');
+    if (filter.warehouseId) qb.andWhere('i.warehouseId = :wid', { wid: filter.warehouseId });
+    if (filter.status) qb.andWhere('i.status = :s', { s: filter.status });
+    const [issues, total] = await qb.skip(filter.skip).take(filter.limit).getManyAndCount();
+
+    const ds = await this.getDs();
+    const whIds = [...new Set(issues.map((i) => i.warehouseId))];
+    const whRows = whIds.length
+      ? await ds.query(`SELECT id, name FROM warehouses WHERE id IN (${whIds.map(() => '?').join(',')})`, whIds)
+      : [];
+    const whMap: Record<string, string> = Object.fromEntries(whRows.map((w: any) => [w.id, w.name]));
+
+    return { data: issues.map((i) => ({ ...i, warehouseName: whMap[i.warehouseId] })), total, page: filter.page, limit: filter.limit };
+  }
+
+  async getIssue(id: string) {
+    const issue = await this.loadIssueEntity(id);
+    const ds = await this.getDs();
+
+    const productIds = [...new Set((issue.items ?? []).map((i) => i.productId))];
+    const unitIds = [...new Set((issue.items ?? []).filter((i) => i.unitId).map((i) => i.unitId!))];
+
+    const [whRows, productRows, unitRows] = await Promise.all([
+      ds.query('SELECT id, name FROM warehouses WHERE id = ?', [issue.warehouseId]),
+      productIds.length ? ds.query(`SELECT id, name, sku FROM products WHERE id IN (${productIds.map(() => '?').join(',')})`, productIds) : Promise.resolve([]),
+      unitIds.length ? ds.query(`SELECT id, name FROM product_units WHERE id IN (${unitIds.map(() => '?').join(',')})`, unitIds) : Promise.resolve([]),
+    ]);
+
+    const productMap: Record<string, any> = Object.fromEntries(productRows.map((p: any) => [p.id, p]));
+    const unitMap: Record<string, any> = Object.fromEntries(unitRows.map((u: any) => [u.id, u]));
+
+    return {
+      ...issue,
+      warehouseName: whRows[0]?.name,
+      items: (issue.items ?? []).map((item) => ({
+        ...item,
+        productSku: productMap[item.productId]?.sku,
+        productName: productMap[item.productId]?.name,
+        unitName: item.unitId ? unitMap[item.unitId]?.name : null,
+      })),
+    };
+  }
+
+  async createIssueDraft(dto: CreateStockIssueDto, userId: string) {
+    const ds = await this.getDs();
+    const issueRepo = ds.getRepository(StockIssue);
+    const itemRepo = ds.getRepository(StockIssueItem);
+
+    const unitMap = await this.buildUnitMap(ds, dto.items.filter((i) => i.unitId).map((i) => i.unitId!));
+
+    const issue = issueRepo.create({
+      warehouseId: dto.warehouseId, issueType: dto.issueType as IssueType,
+      orderId: dto.orderId, notes: dto.notes,
+      status: IssueStatus.DRAFT, createdBy: userId,
+    });
+    await issueRepo.save(issue);
+
+    await itemRepo.save(dto.items.map((i) => itemRepo.create({
+      issueId: issue.id, productId: i.productId, unitId: i.unitId,
+      quantity: i.quantity, qtyInBase: i.quantity * (unitMap[i.unitId!] ?? 1),
+    })));
+
+    return this.getIssue(issue.id);
+  }
+
+  async updateIssue(id: string, dto: UpdateStockIssueDto) {
+    const ds = await this.getDs();
+    const issue = await this.loadIssueEntity(id);
+    if (issue.status !== IssueStatus.DRAFT) throw new BadRequestException('ISSUE_NOT_DRAFT');
+
+    const issueRepo = ds.getRepository(StockIssue);
+    const itemRepo = ds.getRepository(StockIssueItem);
+
+    if (dto.warehouseId !== undefined) issue.warehouseId = dto.warehouseId;
+    if (dto.issueType !== undefined) issue.issueType = dto.issueType as IssueType;
+    if (dto.orderId !== undefined) issue.orderId = dto.orderId;
+    if (dto.notes !== undefined) issue.notes = dto.notes;
+    await issueRepo.save(issue);
+
+    if (dto.items !== undefined) {
+      const unitMap = await this.buildUnitMap(ds, dto.items.filter((i) => i.unitId).map((i) => i.unitId!));
+      await itemRepo.delete({ issueId: id });
+      await itemRepo.save(dto.items.map((i) => itemRepo.create({
+        issueId: id, productId: i.productId, unitId: i.unitId,
+        quantity: i.quantity, qtyInBase: i.quantity * (unitMap[i.unitId!] ?? 1),
+      })));
+    }
+
+    return this.getIssue(id);
+  }
+
+  async confirmIssue(id: string, userId: string) {
+    const ds = await this.getDs();
+    const issue = await this.loadIssueEntity(id);
+    if (issue.status !== IssueStatus.DRAFT) throw new BadRequestException('ISSUE_NOT_DRAFT');
+
+    const balanceRepo = ds.getRepository(InventoryBalance);
+    const txRepo = ds.getRepository(InventoryTransaction);
+    const itemRepo = ds.getRepository(StockIssueItem);
+    const issueRepo = ds.getRepository(StockIssue);
+
+    for (const item of issue.items ?? []) {
+      const available = Number((await balanceRepo.findOne({ where: { productId: item.productId, warehouseId: issue.warehouseId } }))?.quantity ?? 0);
+      if (available < Number(item.qtyInBase)) {
+        throw new BadRequestException({ code: 'INSUFFICIENT_STOCK', productId: item.productId, available, requested: Number(item.qtyInBase) });
+      }
+    }
+
+    for (const item of issue.items ?? []) {
+      const qtyInBase = Number(item.qtyInBase);
+      const balance = await balanceRepo.findOne({ where: { productId: item.productId, warehouseId: issue.warehouseId } });
+      const avgCost = Number(balance!.avgCost);
+      balance!.quantity = Number(balance!.quantity) - qtyInBase;
+      await balanceRepo.save(balance!);
+      item.unitCost = avgCost;
+      await itemRepo.save(item);
+      await txRepo.save(txRepo.create({
+        productId: item.productId, warehouseId: issue.warehouseId,
+        transactionType: TxType.STOCK_OUT, quantity: qtyInBase, unitCost: avgCost,
+        refId: issue.id, refType: issue.issueType, notes: issue.notes, createdBy: userId,
+      }));
+    }
+
+    issue.status = IssueStatus.CONFIRMED;
+    issue.confirmedAt = new Date();
+    issue.confirmedBy = userId;
+    await issueRepo.save(issue);
+    return this.getIssue(id);
+  }
+
+  async cancelIssue(id: string, userId: string) {
+    const ds = await this.getDs();
+    const issue = await this.loadIssueEntity(id);
+    if (issue.status === IssueStatus.CANCELLED) throw new BadRequestException('ISSUE_ALREADY_CANCELLED');
+
+    if (issue.status === IssueStatus.CONFIRMED) {
+      const balanceRepo = ds.getRepository(InventoryBalance);
+      const txRepo = ds.getRepository(InventoryTransaction);
+      for (const item of issue.items ?? []) {
+        const qtyInBase = Number(item.qtyInBase);
+        const balance = await balanceRepo.findOne({ where: { productId: item.productId, warehouseId: issue.warehouseId } });
+        if (balance) { balance.quantity = Number(balance.quantity) + qtyInBase; await balanceRepo.save(balance); }
+        await txRepo.save(txRepo.create({
+          productId: item.productId, warehouseId: issue.warehouseId,
+          transactionType: TxType.ADJUSTMENT_IN, quantity: qtyInBase,
+          unitCost: Number(item.unitCost ?? 0), refId: issue.id, refType: 'cancel_issue', createdBy: userId,
+        }));
+      }
+    }
+
+    issue.status = IssueStatus.CANCELLED;
+    await (await this.getRepo(StockIssue)).save(issue);
+    return this.getIssue(id);
+  }
+
+  // ─── Stock Out (immediate, kept for backward compat) ──────────────────────
 
   async stockOut(dto: CreateStockOutDto, userId: string) {
     const ds = await this.getDs();

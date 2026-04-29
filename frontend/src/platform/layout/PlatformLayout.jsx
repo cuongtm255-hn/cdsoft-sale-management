@@ -8,6 +8,7 @@ import {
   LogoutOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '@auth/AuthContext';
+import LanguageToggle from '@shared/components/LanguageToggle';
 
 const { Header, Sider, Content } = Layout;
 
@@ -41,6 +42,7 @@ export default function PlatformLayout() {
       </Sider>
       <Layout>
         <Header style={{ background: '#fff', padding: '0 24px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+          <LanguageToggle />
           <Button icon={<LogoutOutlined />} onClick={platformLogout}>Logout</Button>
         </Header>
         <Content style={{ margin: '24px', background: '#fff', padding: '24px', borderRadius: 8 }}>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Button, Card, Col, Divider, Form, Input, InputNumber,
   Row, Select, Space, Tooltip, Typography,
@@ -17,6 +17,9 @@ const ISSUE_TYPE_OPTIONS = [
 
 export default function StockOutForm() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditing = Boolean(id);
+
   const [form] = Form.useForm();
   const [warehouses, setWarehouses] = useState([]);
   const [productOptions, setProductOptions] = useState([]);
@@ -24,6 +27,7 @@ export default function StockOutForm() {
   const [unitOptions, setUnitOptions] = useState({});
   const [productMap, setProductMap] = useState({});
   const [stockMap, setStockMap] = useState({});
+
   const items = Form.useWatch('items', form) ?? [];
   const warehouseId = Form.useWatch('warehouseId', form);
   const issueType = Form.useWatch('issueType', form);
@@ -46,11 +50,32 @@ export default function StockOutForm() {
     loadProducts();
   }, []);
 
-  useEffect(() => {
-    loadProducts(productSearch);
-  }, [productSearch]);
+  useEffect(() => { loadProducts(productSearch); }, [productSearch]);
 
-  const handleProductSelect = async (productId, index) => {
+  // Load existing issue when editing
+  useEffect(() => {
+    if (!isEditing) return;
+    inventoryApi.getIssue(id).then((res) => {
+      const issue = res.data?.data ?? res.data;
+      form.setFieldsValue({
+        warehouseId: issue.warehouseId,
+        issueType: issue.issueType,
+        orderId: issue.orderId,
+        notes: issue.notes,
+        items: (issue.items ?? []).map((i) => ({
+          productId: i.productId,
+          unitId: i.unitId ?? null,
+          quantity: Number(i.quantity),
+        })),
+      });
+      // Pre-load units for each item
+      (issue.items ?? []).forEach((item, index) => {
+        handleProductSelect(item.productId, index, issue.warehouseId);
+      });
+    });
+  }, [id]);
+
+  const handleProductSelect = async (productId, index, overrideWarehouseId) => {
     let product = productMap[productId];
     if (!product?.units) {
       const res = await productsApi.get(productId);
@@ -64,50 +89,79 @@ export default function StockOutForm() {
       .map((u) => ({ label: `${u.name} (×${Number(u.conversionRate)})`, value: u.id, convRate: Number(u.conversionRate) }));
     setUnitOptions((prev) => ({ ...prev, [index]: [baseOpt, ...conversionOpts] }));
 
-    const currentItems = form.getFieldValue('items') ?? [];
-    currentItems[index] = { ...currentItems[index], productId, unitId: null };
-    form.setFieldValue('items', currentItems);
-
-    if (warehouseId) {
-      inventoryApi.productStock(productId, warehouseId).then((res) => {
+    const wid = overrideWarehouseId ?? warehouseId;
+    if (wid) {
+      inventoryApi.productStock(productId, wid).then((res) => {
         const qty = res.data?.data?.quantity ?? res.data?.quantity ?? 0;
         setStockMap((prev) => ({ ...prev, [`${index}_${productId}`]: qty }));
       });
     }
+
+    if (!overrideWarehouseId) {
+      const currentItems = form.getFieldValue('items') ?? [];
+      currentItems[index] = { ...currentItems[index], productId, unitId: null };
+      form.setFieldValue('items', currentItems);
+    }
   };
 
-  const { execute: submit, loading } = useApi(inventoryApi.stockOut, {
-    successMessage: 'Xuất kho thành công',
-    onSuccess: () => navigate('/tenant/inventory/issues'),
+  const buildPayload = (values) => ({
+    warehouseId: values.warehouseId,
+    issueType: values.issueType,
+    orderId: values.orderId,
+    notes: values.notes,
+    items: values.items.map((i) => ({
+      productId: i.productId,
+      ...(i.unitId ? { unitId: i.unitId } : {}),
+      quantity: i.quantity,
+    })),
   });
 
-  const handleSubmit = (values) => {
-    submit({
-      warehouseId: values.warehouseId,
-      issueType: values.issueType,
-      orderId: values.orderId,
-      notes: values.notes,
-      items: values.items.map((i) => ({
-        productId: i.productId,
-        ...(i.unitId ? { unitId: i.unitId } : {}),
-        quantity: i.quantity,
-      })),
-    });
-  };
+  const { execute: saveDraft, loading: savingDraft } = useApi(
+    (payload) => isEditing ? inventoryApi.updateIssue(id, payload) : inventoryApi.createIssue(payload),
+    {
+      successMessage: 'Phiếu xuất đã lưu nháp',
+      onSuccess: (r) => {
+        const issueId = r?.data?.id ?? r?.id ?? id;
+        navigate(`/tenant/inventory/issues/${issueId}`);
+      },
+    },
+  );
+
+  const { execute: confirmAndSave, loading: confirming } = useApi(
+    async (payload) => {
+      let issueId = id;
+      if (!isEditing) {
+        const created = await inventoryApi.createIssue(payload);
+        issueId = created.data?.data?.id ?? created.data?.id;
+      } else {
+        await inventoryApi.updateIssue(id, payload);
+      }
+      return inventoryApi.confirmIssue(issueId);
+    },
+    {
+      successMessage: 'Xuất kho thành công',
+      onSuccess: () => navigate('/tenant/inventory/issues'),
+    },
+  );
+
+  const handleSaveDraft = () => form.validateFields().then((v) => saveDraft(buildPayload(v)));
+  const handleConfirm = () => form.validateFields().then((v) => confirmAndSave(buildPayload(v)));
+
+  const loading = savingDraft || confirming;
 
   return (
     <div>
       <PageHeader
         title={
           <Space>
-            <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate('/tenant/inventory/issues')} />
-            Phiếu xuất kho mới
+            <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate(isEditing ? `/tenant/inventory/issues/${id}` : '/tenant/inventory/issues')} />
+            {isEditing ? 'Chỉnh sửa phiếu xuất kho' : 'Phiếu xuất kho mới'}
           </Space>
         }
       />
 
       <Card>
-        <Form form={form} layout="vertical" initialValues={{ issueType: 'INTERNAL', items: [{}] }} onFinish={handleSubmit}>
+        <Form form={form} layout="vertical" initialValues={{ issueType: 'INTERNAL', items: [{}] }}>
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item name="warehouseId" label="Kho xuất" rules={[{ required: true }]}>
@@ -138,7 +192,7 @@ export default function StockOutForm() {
           <Form.List name="items">
             {(fields, { add, remove }) => (
               <>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 130px 100px 120px 60px', gap: 8, marginBottom: 8, fontWeight: 600 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 160px 100px 120px 40px', gap: 8, marginBottom: 8, fontWeight: 600 }}>
                   <span>Sản phẩm</span><span>Đơn vị</span><span>Số lượng</span><span>Tồn kho</span><span />
                 </div>
 
@@ -153,24 +207,20 @@ export default function StockOutForm() {
                   const insufficient = available !== undefined && qtyInBase > available;
 
                   return (
-                    <div key={key} style={{ display: 'grid', gridTemplateColumns: '2fr 130px 100px 120px 60px', gap: 8, marginBottom: 8, alignItems: 'start' }}>
+                    <div key={key} style={{ display: 'grid', gridTemplateColumns: '2fr 160px 100px 120px 40px', gap: 8, marginBottom: 8, alignItems: 'start' }}>
                       <Form.Item name={[name, 'productId']} rules={[{ required: true }]} style={{ margin: 0 }}>
                         <Select
-                          showSearch
-                          options={productOptions}
-                          onSearch={setProductSearch}
-                          filterOption={false}
-                          placeholder="Tìm sản phẩm"
+                          showSearch options={productOptions} onSearch={setProductSearch}
+                          filterOption={false} placeholder="Tìm sản phẩm"
                           onChange={(v) => handleProductSelect(v, name)}
                         />
                       </Form.Item>
                       <Form.Item name={[name, 'unitId']} style={{ margin: 0 }}>
-                        <Select options={unitOptions[name] ?? []} placeholder="ĐVT" />
+                        <Select options={unitOpts} placeholder="ĐVT" />
                       </Form.Item>
                       <Form.Item name={[name, 'quantity']} rules={[{ required: true }]} style={{ margin: 0 }}>
                         <InputNumber
-                          min={0.0001}
-                          style={{ width: '100%', borderColor: insufficient ? '#ff4d4f' : undefined }}
+                          min={0.0001} style={{ width: '100%', borderColor: insufficient ? '#ff4d4f' : undefined }}
                           placeholder="SL"
                         />
                       </Form.Item>
@@ -181,20 +231,14 @@ export default function StockOutForm() {
                               {Number(available).toLocaleString('vi-VN')}
                             </Typography.Text>
                             {insufficient && (
-                              <Tooltip title={convRate > 1 ? `Không đủ hàng (cần ${qtyInBase.toLocaleString('vi-VN')} đơn vị cơ bản, tồn ${Number(available).toLocaleString('vi-VN')})` : 'Không đủ hàng'}>
+                              <Tooltip title={convRate > 1 ? `Cần ${qtyInBase.toLocaleString('vi-VN')} đvcs, tồn ${Number(available).toLocaleString('vi-VN')}` : 'Không đủ hàng'}>
                                 <WarningOutlined style={{ color: '#ff4d4f' }} />
                               </Tooltip>
                             )}
                           </>
                         ) : '—'}
                       </div>
-                      <Button
-                        type="text"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={() => remove(name)}
-                        style={{ marginTop: 4 }}
-                      />
+                      <Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(name)} style={{ marginTop: 4 }} />
                     </div>
                   );
                 })}
@@ -208,7 +252,10 @@ export default function StockOutForm() {
 
           <Divider />
           <Space>
-            <Button type="primary" htmlType="submit" loading={loading} disabled={items.length === 0}>
+            <Button onClick={handleSaveDraft} loading={savingDraft} disabled={loading || items.length === 0}>
+              Lưu nháp
+            </Button>
+            <Button type="primary" onClick={handleConfirm} loading={confirming} disabled={loading || items.length === 0}>
               Xác nhận xuất kho
             </Button>
             <Button onClick={() => navigate(-1)}>Huỷ</Button>

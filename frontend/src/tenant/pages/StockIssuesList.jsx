@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Select, Space, Tag, Typography } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Button, Select, Space, Tag } from 'antd';
+import { EyeOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import PageHeader from '@shared/components/PageHeader';
 import DataTable from '@shared/components/DataTable';
 import { usePagination } from '@shared/hooks/useApi';
 import { inventoryApi, warehousesApi } from '@api/tenant.api';
 
-const ISSUE_TYPE_LABELS = {
-  SALE: 'Xuất bán',
-  INTERNAL: 'Xuất nội bộ',
-  DAMAGED: 'Hỏng / Hủy',
-};
+const STATUS_COLORS = { DRAFT: 'orange', CONFIRMED: 'green', CANCELLED: 'default' };
+const STATUS_LABELS = { DRAFT: 'Nháp', CONFIRMED: 'Đã xác nhận', CANCELLED: 'Đã hủy' };
+const ISSUE_TYPE_LABELS = { SALE: 'Xuất bán', INTERNAL: 'Xuất nội bộ', DAMAGED: 'Hỏng / Hủy' };
 const ISSUE_TYPE_COLORS = { SALE: 'blue', INTERNAL: 'green', DAMAGED: 'red' };
 
 export default function StockIssuesList() {
@@ -31,10 +29,7 @@ export default function StockIssuesList() {
     });
   }, []);
 
-  const doFetch = useCallback(() => {
-    fetch({ warehouseId });
-  }, [fetch, warehouseId]);
-
+  const doFetch = useCallback(() => { fetch({ warehouseId }); }, [fetch, warehouseId]);
   useEffect(() => { doFetch(); }, [warehouseId]);
 
   const columns = [
@@ -46,14 +41,11 @@ export default function StockIssuesList() {
       render: (v) => dayjs(v).format('DD/MM/YYYY HH:mm'),
     },
     {
-      title: 'Sản phẩm',
-      key: 'product',
-      render: (_, row) => (
-        <span>
-          <Typography.Text code>{row.sku}</Typography.Text>{' '}
-          {row.productName}
-        </span>
-      ),
+      title: 'Trạng thái',
+      dataIndex: 'status',
+      key: 'status',
+      width: 130,
+      render: (v) => <Tag color={STATUS_COLORS[v]}>{STATUS_LABELS[v] ?? v}</Tag>,
     },
     {
       title: 'Kho xuất',
@@ -66,33 +58,13 @@ export default function StockIssuesList() {
       dataIndex: 'issueType',
       key: 'issueType',
       width: 130,
-      render: (v) => (
-        <Tag color={ISSUE_TYPE_COLORS[v] ?? 'default'}>
-          {ISSUE_TYPE_LABELS[v] ?? v ?? '—'}
-        </Tag>
-      ),
-    },
-    {
-      title: 'Số lượng',
-      dataIndex: 'quantity',
-      key: 'quantity',
-      width: 100,
-      align: 'right',
-      render: (v) => Number(v).toLocaleString('vi-VN'),
-    },
-    {
-      title: 'Đơn giá TB',
-      dataIndex: 'unitCost',
-      key: 'unitCost',
-      width: 130,
-      align: 'right',
-      render: (v) => v ? `${Number(v).toLocaleString('vi-VN')} ₫` : '—',
+      render: (v) => <Tag color={ISSUE_TYPE_COLORS[v] ?? 'default'}>{ISSUE_TYPE_LABELS[v] ?? v ?? '—'}</Tag>,
     },
     {
       title: 'Mã đơn hàng',
-      dataIndex: 'refId',
-      key: 'refId',
-      width: 140,
+      dataIndex: 'orderId',
+      key: 'orderId',
+      width: 150,
       render: (v) => v || '—',
     },
     {
@@ -101,6 +73,18 @@ export default function StockIssuesList() {
       key: 'notes',
       render: (v) => v || '—',
     },
+    {
+      title: '',
+      key: 'actions',
+      width: 60,
+      render: (_, row) => (
+        <Button
+          type="text"
+          icon={<EyeOutlined />}
+          onClick={() => navigate(`/tenant/inventory/issues/${row.id}`)}
+        />
+      ),
+    },
   ];
 
   return (
@@ -108,11 +92,7 @@ export default function StockIssuesList() {
       <PageHeader
         title="Phiếu xuất kho"
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => navigate('/tenant/inventory/issues/new')}
-          >
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/tenant/inventory/issues/new')}>
             Tạo phiếu xuất
           </Button>
         }

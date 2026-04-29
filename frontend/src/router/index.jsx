@@ -28,6 +28,7 @@ import StockReceiptDetail from '@tenant/pages/StockReceiptDetail';
 import StockInForm from '@tenant/pages/StockInForm';
 import StockOutForm from '@tenant/pages/StockOutForm';
 import StockIssuesList from '@tenant/pages/StockIssuesList';
+import StockIssueDetail from '@tenant/pages/StockIssueDetail';
 import AdjustmentForm from '@tenant/pages/AdjustmentForm';
 import TransfersList from '@tenant/pages/TransfersList';
 import TransferForm from '@tenant/pages/TransferForm';
@@ -109,8 +110,11 @@ export default function AppRouter() {
         <Route path="inventory/receipts" element={<StockReceiptsList />} />
         <Route path="inventory/receipts/new" element={<StockInForm />} />
         <Route path="inventory/receipts/:id" element={<StockReceiptDetail />} />
+        <Route path="inventory/receipts/:id/edit" element={<StockInForm />} />
         <Route path="inventory/issues" element={<StockIssuesList />} />
         <Route path="inventory/issues/new" element={<StockOutForm />} />
+        <Route path="inventory/issues/:id" element={<StockIssueDetail />} />
+        <Route path="inventory/issues/:id/edit" element={<StockOutForm />} />
         <Route path="inventory/adjustments/new" element={<AdjustmentForm />} />
         <Route path="inventory/transfers" element={<TransfersList />} />
         <Route path="inventory/transfers/new" element={<TransferForm />} />

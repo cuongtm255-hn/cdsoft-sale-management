@@ -64,11 +64,17 @@ export const inventoryApi = {
   getReceipts: (params) => tenantApi.get('/tenant/inventory/stock-receipts', { params }),
   getReceipt: (id) => tenantApi.get(`/tenant/inventory/stock-receipts/${id}`),
   stockIn: (data) => tenantApi.post('/tenant/inventory/stock-in', data),
+  updateReceipt: (id, data) => tenantApi.patch(`/tenant/inventory/stock-receipts/${id}`, data),
   confirmReceipt: (id, data) => tenantApi.patch(`/tenant/inventory/stock-receipts/${id}/confirm`, data),
   cancelReceipt: (id) => tenantApi.patch(`/tenant/inventory/stock-receipts/${id}/cancel`),
 
-  // Stock out (xuất kho)
-  getIssues: (params) => tenantApi.get('/tenant/inventory/stock-out', { params }),
+  // Stock issues (xuất kho — DRAFT → CONFIRMED)
+  getIssues: (params) => tenantApi.get('/tenant/inventory/stock-issues', { params }),
+  getIssue: (id) => tenantApi.get(`/tenant/inventory/stock-issues/${id}`),
+  createIssue: (data) => tenantApi.post('/tenant/inventory/stock-issues', data),
+  updateIssue: (id, data) => tenantApi.patch(`/tenant/inventory/stock-issues/${id}`, data),
+  confirmIssue: (id) => tenantApi.patch(`/tenant/inventory/stock-issues/${id}/confirm`),
+  cancelIssue: (id) => tenantApi.patch(`/tenant/inventory/stock-issues/${id}/cancel`),
   stockOut: (data) => tenantApi.post('/tenant/inventory/stock-out', data),
 
   // Stock adjustment (điều chỉnh kho)

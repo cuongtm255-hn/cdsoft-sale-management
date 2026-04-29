@@ -78,6 +78,58 @@ export class CreateStockOutDto {
   items: StockOutItemDto[];
 }
 
+// ─── Stock Issue (DRAFT/CONFIRM flow) ────────────────────────────────────────
+
+export class StockIssueItemDto {
+  @IsUUID() productId: string;
+  @IsOptional() @IsUUID() unitId?: string;
+  @IsNumber() @Min(0.0001) quantity: number;
+}
+
+export class CreateStockIssueDto {
+  @IsUUID() warehouseId: string;
+  @IsString() issueType: string;
+  @IsOptional() @IsString() orderId?: string;
+  @IsOptional() @IsString() notes?: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => StockIssueItemDto)
+  items: StockIssueItemDto[];
+}
+
+export class UpdateStockIssueDto {
+  @IsOptional() @IsUUID() warehouseId?: string;
+  @IsOptional() @IsString() issueType?: string;
+  @IsOptional() @IsString() orderId?: string;
+  @IsOptional() @IsString() notes?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => StockIssueItemDto)
+  items?: StockIssueItemDto[];
+}
+
+export class UpdateStockReceiptDto {
+  @IsOptional() @IsUUID() supplierId?: string;
+  @IsOptional() @IsUUID() warehouseId?: string;
+  @IsOptional() @IsDateString() expectedDate?: string;
+  @IsOptional() @IsString() refCode?: string;
+  @IsOptional() @IsString() notes?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => StockReceiptItemDto)
+  items?: StockReceiptItemDto[];
+}
+
+export class StockIssueFilterDto extends PaginationDto {
+  @IsOptional() @IsUUID() warehouseId?: string;
+  @IsOptional() @IsString() status?: string;
+}
+
 // ─── Adjustment ──────────────────────────────────────────────────────────────
 
 export class AdjustmentItemDto {

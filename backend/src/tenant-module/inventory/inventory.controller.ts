@@ -1,16 +1,17 @@
 import {
-  Body, Controller, Get, Param, Patch, Post, Query, UseGuards,
+  Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { InventoryService } from './inventory.service';
 import {
-  CreateStockReceiptDto, ConfirmStockReceiptDto,
+  CreateStockReceiptDto, ConfirmStockReceiptDto, UpdateStockReceiptDto,
   CreateStockOutDto, CreateAdjustmentDto,
   CreateTransferDto, ReceiveTransferDto,
   CreateStocktakingDto, CompleteStocktakingDto,
-  InventoryFilterDto, StockReceiptFilterDto, StockOutFilterDto,
+  InventoryFilterDto, StockReceiptFilterDto,
+  CreateStockIssueDto, UpdateStockIssueDto, StockIssueFilterDto,
 } from './dto/inventory.dto';
 
 @ApiTags('Tenant / Inventory')
@@ -85,16 +86,69 @@ export class InventoryController {
     return this.service.cancelReceipt(id);
   }
 
-  // ─── Stock Out ────────────────────────────────────────────────────────────
-
-  @Get('stock-out')
-  @ApiOperation({ summary: 'List stock issues' })
-  getStockOuts(@Query() filter: StockOutFilterDto) {
-    return this.service.getStockOuts(filter);
+  @Patch('stock-receipts/:id')
+  @ApiOperation({ summary: 'Update DRAFT stock receipt' })
+  updateReceipt(
+    @Param('id') id: string,
+    @Body() dto: UpdateStockReceiptDto,
+  ) {
+    return this.service.updateReceipt(id, dto);
   }
 
+  // ─── Stock Issues (DRAFT → CONFIRMED) ────────────────────────────────────
+
+  @Get('stock-issues')
+  @ApiOperation({ summary: 'List stock issues' })
+  getIssues(@Query() filter: StockIssueFilterDto) {
+    return this.service.getIssues(filter);
+  }
+
+  @Get('stock-issues/:id')
+  @ApiOperation({ summary: 'Get stock issue detail' })
+  getIssue(@Param('id') id: string) {
+    return this.service.getIssue(id);
+  }
+
+  @Post('stock-issues')
+  @ApiOperation({ summary: 'Create stock issue (DRAFT)' })
+  createIssue(
+    @Body() dto: CreateStockIssueDto,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.service.createIssueDraft(dto, user.id);
+  }
+
+  @Patch('stock-issues/:id')
+  @ApiOperation({ summary: 'Update DRAFT stock issue' })
+  updateIssue(
+    @Param('id') id: string,
+    @Body() dto: UpdateStockIssueDto,
+  ) {
+    return this.service.updateIssue(id, dto);
+  }
+
+  @Patch('stock-issues/:id/confirm')
+  @ApiOperation({ summary: 'Confirm stock issue — deducts inventory' })
+  confirmIssue(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.service.confirmIssue(id, user.id);
+  }
+
+  @Patch('stock-issues/:id/cancel')
+  @ApiOperation({ summary: 'Cancel stock issue — reverses inventory if CONFIRMED' })
+  cancelIssue(
+    @Param('id') id: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.service.cancelIssue(id, user.id);
+  }
+
+  // ─── Stock Out (backward compat) ─────────────────────────────────────────
+
   @Post('stock-out')
-  @ApiOperation({ summary: 'Create stock issue' })
+  @ApiOperation({ summary: 'Create & immediately confirm stock issue (legacy)' })
   stockOut(
     @Body() dto: CreateStockOutDto,
     @CurrentUser() user: { id: string },

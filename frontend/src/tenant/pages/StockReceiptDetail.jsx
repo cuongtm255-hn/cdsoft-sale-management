@@ -4,7 +4,7 @@ import {
   Button, Card, Col, Descriptions, Divider, Popconfirm, Row,
   Space, Spin, Table, Tag, Tooltip, Typography,
 } from 'antd';
-import { ArrowLeftOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CheckOutlined, CloseOutlined, EditOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import PageHeader from '@shared/components/PageHeader';
 import { useApi } from '@shared/hooks/useApi';
@@ -124,6 +124,9 @@ export default function StockReceiptDetail() {
         extra={
           isDraft && (
             <Space>
+              <Button icon={<EditOutlined />} onClick={() => navigate(`/tenant/inventory/receipts/${id}/edit`)}>
+                Chỉnh sửa
+              </Button>
               <Button
                 type="primary"
                 icon={<CheckOutlined />}

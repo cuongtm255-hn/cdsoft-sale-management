@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Button, Card, Col, DatePicker, Divider, Form, Input, InputNumber,
   Row, Select, Space, Spin, Typography,
@@ -16,6 +16,9 @@ function fmtVND(v) {
 
 export default function StockInForm() {
   const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditing = Boolean(id);
+
   const [form] = Form.useForm();
   const [warehouses, setWarehouses] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -48,9 +51,31 @@ export default function StockInForm() {
     loadProducts();
   }, []);
 
+  useEffect(() => { loadProducts(productSearch); }, [productSearch]);
+
+  // Load existing receipt when editing
   useEffect(() => {
-    loadProducts(productSearch);
-  }, [productSearch]);
+    if (!isEditing) return;
+    inventoryApi.getReceipt(id).then((res) => {
+      const r = res.data?.data ?? res.data;
+      form.setFieldsValue({
+        supplierId: r.supplierId,
+        warehouseId: r.warehouseId,
+        expectedDate: r.expectedDate ? dayjs(r.expectedDate) : undefined,
+        refCode: r.refCode,
+        notes: r.notes,
+        items: (r.items ?? []).map((i) => ({
+          productId: i.productId,
+          unitId: i.unitId ?? null,
+          quantity: Number(i.quantity),
+          unitCost: Number(i.unitCost),
+          batchNumber: i.batchNumber,
+          expiryDate: i.expiryDate ? dayjs(i.expiryDate) : undefined,
+        })),
+      });
+      (r.items ?? []).forEach((item, index) => { handleProductSelect(item.productId, index); });
+    });
+  }, [id]);
 
   const handleProductSelect = async (productId, index) => {
     // Fetch full product to get units + prices (list endpoint doesn't include units)
@@ -85,16 +110,27 @@ export default function StockInForm() {
     return sum + (Number(item?.quantity ?? 0) * Number(item?.unitCost ?? 0));
   }, 0);
 
-  const { execute: saveDraft, loading: savingDraft } = useApi(inventoryApi.stockIn, {
-    successMessage: 'Phiếu nhập đã được lưu nháp',
-    onSuccess: (r) => navigate(`/tenant/inventory/receipts/${r.id}`),
-  });
+  const { execute: saveDraft, loading: savingDraft } = useApi(
+    (payload) => isEditing ? inventoryApi.updateReceipt(id, payload) : inventoryApi.stockIn(payload),
+    {
+      successMessage: 'Phiếu nhập đã lưu nháp',
+      onSuccess: (r) => {
+        const receiptId = r?.data?.id ?? r?.id ?? id;
+        navigate(`/tenant/inventory/receipts/${receiptId}`);
+      },
+    },
+  );
 
   const { execute: confirmAndSave, loading: confirming } = useApi(
-    async (data) => {
-      const receipt = await inventoryApi.stockIn(data);
-      const id = receipt.data?.data?.id ?? receipt.data?.id;
-      return inventoryApi.confirmReceipt(id, {});
+    async (payload) => {
+      let receiptId = id;
+      if (!isEditing) {
+        const receipt = await inventoryApi.stockIn(payload);
+        receiptId = receipt.data?.data?.id ?? receipt.data?.id;
+      } else {
+        await inventoryApi.updateReceipt(id, payload);
+      }
+      return inventoryApi.confirmReceipt(receiptId, {});
     },
     {
       successMessage: 'Nhập kho thành công',
@@ -133,8 +169,8 @@ export default function StockInForm() {
       <PageHeader
         title={
           <Space>
-            <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate('/tenant/inventory/receipts')} />
-            Phiếu nhập kho mới
+            <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate(isEditing ? `/tenant/inventory/receipts/${id}` : '/tenant/inventory/receipts')} />
+            {isEditing ? 'Chỉnh sửa phiếu nhập kho' : 'Phiếu nhập kho mới'}
           </Space>
         }
       />
