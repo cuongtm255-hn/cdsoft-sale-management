@@ -10,6 +10,8 @@ import { Voucher, VoucherType } from './entities/voucher.entity';
 import { Promotion } from './entities/promotion.entity';
 import { InventoryBalance } from '../inventory/entities/inventory-balance.entity';
 import { InventoryTransaction, TxType } from '../inventory/entities/inventory-transaction.entity';
+import { Invoice, InvoiceStatus } from '../invoices/entities/invoice.entity';
+import { InvoiceItem } from '../invoices/entities/invoice-item.entity';
 import {
   OrderFilterDto, CreateSalesOrderDto, CreatePurchaseOrderDto,
   CancelOrderDto, ValidateVoucherDto, CreateVoucherDto,
@@ -134,10 +136,57 @@ export class OrdersService {
   // ─── Get One ──────────────────────────────────────────────────────────────
 
   async getOrder(id: string) {
-    const repo = await this.getRepo(Order);
+    const ds = await this.getDs();
+    const repo = ds.getRepository(Order);
     const order = await repo.findOne({ where: { id }, relations: ['items'] });
     if (!order) throw new NotFoundException(`Order ${id} not found`);
-    return order;
+
+    // Enrich with display names
+    const [customerRows, warehouseRows, salesRepRows] = await Promise.all([
+      order.customerId
+        ? ds.query(`SELECT id, name, code FROM customers WHERE id = ? AND deleted_at IS NULL`, [order.customerId])
+        : Promise.resolve([]),
+      order.warehouseId
+        ? ds.query(`SELECT id, name FROM warehouses WHERE id = ? AND deleted_at IS NULL`, [order.warehouseId])
+        : Promise.resolve([]),
+      order.salesRepId
+        ? ds.query(`SELECT id, full_name FROM users WHERE id = ? AND deleted_at IS NULL`, [order.salesRepId])
+        : Promise.resolve([]),
+    ]);
+
+    const productIds = [...new Set((order.items ?? []).map((i) => i.productId))];
+    const unitIds = [...new Set((order.items ?? []).map((i) => i.unitId).filter(Boolean))];
+
+    const [products, units] = await Promise.all([
+      productIds.length
+        ? ds.query(
+            `SELECT id, name, sku FROM products WHERE id IN (${productIds.map(() => '?').join(',')})`,
+            productIds,
+          )
+        : Promise.resolve([]),
+      unitIds.length
+        ? ds.query(
+            `SELECT id, name FROM product_units WHERE id IN (${unitIds.map(() => '?').join(',')})`,
+            unitIds,
+          )
+        : Promise.resolve([]),
+    ]);
+
+    const productMap: Record<string, any> = Object.fromEntries(products.map((p: any) => [p.id, p]));
+    const unitMap: Record<string, any> = Object.fromEntries(units.map((u: any) => [u.id, u]));
+
+    return {
+      ...order,
+      customer: customerRows[0] ?? null,
+      warehouse: warehouseRows[0] ? { name: warehouseRows[0].name } : null,
+      salesRep: salesRepRows[0] ? { name: salesRepRows[0].full_name } : null,
+      items: (order.items ?? []).map((item) => ({
+        ...item,
+        productName: productMap[item.productId]?.name,
+        productSku: productMap[item.productId]?.sku,
+        unitName: unitMap[item.unitId ?? '']?.name,
+      })),
+    };
   }
 
   // ─── Create Sales Order ───────────────────────────────────────────────────
@@ -367,7 +416,48 @@ export class OrdersService {
     order.status = OrderStatus.CONFIRMED;
     order.confirmedAt = new Date();
     order.confirmedBy = userId;
-    return orderRepo.save(order);
+    const saved = await orderRepo.save(order);
+
+    // Auto-create invoice
+    const year = new Date().getFullYear();
+    const countResult = await ds.query(
+      `SELECT COUNT(*) as cnt FROM invoices WHERE code LIKE ?`,
+      [`INV-${year}-%`],
+    );
+    const seq = String(Number(countResult[0]?.cnt ?? 0) + 1).padStart(4, '0');
+    const invoiceCode = `INV-${year}-${seq}`;
+
+    const invoiceRepo = await this.getRepo(Invoice);
+    const invoiceItemRepo = await this.getRepo(InvoiceItem);
+
+    const invoice = await invoiceRepo.save(invoiceRepo.create({
+      code: invoiceCode,
+      orderId: saved.id,
+      customerId: saved.customerId,
+      status: InvoiceStatus.UNPAID,
+      subtotal: saved.subtotal,
+      discountTotal: saved.discountTotal,
+      totalAmount: saved.totalAmount,
+      paidAmount: 0,
+      issuedAt: new Date(),
+    }));
+
+    const items = (order.items ?? []) as any[];
+    await invoiceItemRepo.save(
+      items.map((item) =>
+        invoiceItemRepo.create({
+          invoiceId: invoice.id,
+          productName: item.productName ?? item.productId,
+          unit: item.unitName ?? undefined,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discountPercent: item.discountPercent ?? 0,
+          lineTotal: item.lineTotal,
+        }),
+      ),
+    );
+
+    return saved;
   }
 
   // ─── Confirm Purchase Order ───────────────────────────────────────────────
@@ -549,15 +639,15 @@ export class OrdersService {
     const repo = await this.getRepo(Promotion);
     const today = new Date().toISOString().slice(0, 10);
 
-    const qb = repo.createQueryBuilder('p').where('p.is_active = 1');
+    const qb = repo.createQueryBuilder('p').where('p.isActive = 1');
 
     if (status === 'active') {
-      qb.andWhere('(p.start_date IS NULL OR p.start_date <= :today)', { today })
-        .andWhere('(p.end_date IS NULL OR p.end_date >= :today)', { today });
+      qb.andWhere('(p.startDate IS NULL OR p.startDate <= :today)', { today })
+        .andWhere('(p.endDate IS NULL OR p.endDate >= :today)', { today });
     } else if (status === 'upcoming') {
-      qb.andWhere('p.start_date > :today', { today });
+      qb.andWhere('p.startDate > :today', { today });
     } else if (status === 'ended') {
-      qb.andWhere('p.end_date < :today', { today });
+      qb.andWhere('p.endDate < :today', { today });
     }
 
     return qb.orderBy('p.priority', 'DESC').getMany();

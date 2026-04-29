@@ -82,8 +82,8 @@ export class InventoryService {
         '(p.min_stock_level > 0 AND ib.quantity <= p.min_stock_level) AS "isLowStock"',
       ]);
 
-    if (filter.warehouseId) qb.andWhere('ib.warehouse_id = :wid', { wid: filter.warehouseId });
-    if (filter.productId) qb.andWhere('ib.product_id = :pid', { pid: filter.productId });
+    if (filter.warehouseId) qb.andWhere('ib.warehouseId = :wid', { wid: filter.warehouseId });
+    if (filter.productId) qb.andWhere('ib.productId = :pid', { pid: filter.productId });
     if (filter.lowStockOnly) {
       qb.andWhere('p.min_stock_level > 0 AND ib.quantity <= p.min_stock_level');
     }
@@ -580,7 +580,7 @@ export class InventoryService {
       .where('t.transaction_type = :type', { type: TxType.STOCK_OUT })
       .orderBy('t.createdAt', 'DESC');
 
-    if (filter.warehouseId) qb.andWhere('t.warehouse_id = :wid', { wid: filter.warehouseId });
+    if (filter.warehouseId) qb.andWhere('t.warehouseId = :wid', { wid: filter.warehouseId });
 
     const total = await qb.getCount();
     const data = await qb.offset(filter.skip).limit(filter.limit).getRawMany();

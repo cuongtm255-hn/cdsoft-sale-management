@@ -160,7 +160,10 @@ export default function StockReceiptDetail() {
           <Descriptions.Item label="Mã tham chiếu">{receipt.refCode || '—'}</Descriptions.Item>
           <Descriptions.Item label="Nhà cung cấp">
             {receipt.supplierCode
-              ? <Tooltip title={receipt.supplierName}><span style={{ cursor: 'default' }}>{receipt.supplierCode}</span></Tooltip>
+              ? <span>
+                  <Typography.Text code>{receipt.supplierCode}</Typography.Text>
+                  {' '}{receipt.supplierName}
+                </span>
               : '—'}
           </Descriptions.Item>
           <Descriptions.Item label="Kho nhập">{receipt.warehouseName ?? receipt.warehouseId}</Descriptions.Item>

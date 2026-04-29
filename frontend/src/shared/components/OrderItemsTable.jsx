@@ -1,4 +1,4 @@
-import { Table, InputNumber, Select, Button, Typography } from 'antd';
+import { Table, InputNumber, Select, Button, Tooltip, Typography } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 
 const fmt = (v) => Number(v || 0).toLocaleString('vi-VN') + '₫';
@@ -26,9 +26,21 @@ export default function OrderItemsTable({ items = [], editable = false, onChange
   const columns = [
     {
       title: 'Sản phẩm',
-      dataIndex: 'productName',
       key: 'product',
-      render: (v, row) => v ?? row.productId,
+      render: (_, row) => {
+        const name = row.productName ?? '';
+        const truncated = name.length > 20;
+        return (
+          <span>
+            <Typography.Text code>{row.productSku ?? row.productId}</Typography.Text>{' '}
+            {truncated ? (
+              <Tooltip title={name}>
+                <span style={{ cursor: 'default' }}>{name.slice(0, 20)}…</span>
+              </Tooltip>
+            ) : name}
+          </span>
+        );
+      },
     },
     {
       title: 'ĐVT',

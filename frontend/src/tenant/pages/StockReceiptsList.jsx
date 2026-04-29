@@ -62,7 +62,13 @@ export default function StockReceiptsList() {
       width: 130,
       render: (v) => <Tag color={STATUS_COLORS[v]}>{STATUS_LABELS[v] ?? v}</Tag>,
     },
-    { title: 'Kho nhập', dataIndex: 'warehouseId', key: 'warehouseId', width: 140 },
+    {
+      title: 'Kho nhập',
+      dataIndex: 'warehouseId',
+      key: 'warehouseId',
+      width: 140,
+      render: (v) => warehouses.find((w) => w.value === v)?.label ?? v,
+    },
     {
       title: 'Ngày dự kiến',
       dataIndex: 'expectedDate',

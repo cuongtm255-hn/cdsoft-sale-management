@@ -60,6 +60,7 @@ export default function SalesOrderForm() {
     setItems((prev) => [...prev, {
       productId,
       productName: product.name,
+      productSku: product.sku,
       quantity: 1,
       unitPrice: product.retailPrice ?? 0,
       discountPercent: 0,

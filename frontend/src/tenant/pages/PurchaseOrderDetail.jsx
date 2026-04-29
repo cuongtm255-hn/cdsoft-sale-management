@@ -119,7 +119,7 @@ export default function PurchaseOrderDetail() {
       <Descriptions bordered column={2} size="small" style={{ marginBottom: 24 }}>
         <Descriptions.Item label="Nhà cung cấp">{order.supplier?.name ?? order.supplierId ?? '—'}</Descriptions.Item>
         <Descriptions.Item label="Ngày tạo">{dayjs(order.createdAt ?? order.created_at).format('DD/MM/YYYY HH:mm')}</Descriptions.Item>
-        <Descriptions.Item label="Kho nhập">{order.warehouseId ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="Kho nhập">{order.warehouse?.name ?? order.warehouseId ?? '—'}</Descriptions.Item>
         <Descriptions.Item label="Hình thức TT">{PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod ?? '—'}</Descriptions.Item>
         {order.confirmedAt && (
           <Descriptions.Item label="Ngày xác nhận">

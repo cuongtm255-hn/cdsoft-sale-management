@@ -316,14 +316,14 @@ export class LoyaltyService {
     const repo = await this.getRepo(LoyaltyTransaction);
     const qb = repo.createQueryBuilder('lt').where('1=1');
 
-    if (filter.customerId) qb.andWhere('lt.customer_id = :cid', { cid: filter.customerId });
+    if (filter.customerId) qb.andWhere('lt.customerId = :cid', { cid: filter.customerId });
     if (filter.type) qb.andWhere('lt.type = :type', { type: filter.type });
-    if (filter.from) qb.andWhere('lt.created_at >= :from', { from: filter.from });
-    if (filter.to) qb.andWhere('lt.created_at <= :to', { to: `${filter.to} 23:59:59` });
+    if (filter.from) qb.andWhere('lt.createdAt >= :from', { from: filter.from });
+    if (filter.to) qb.andWhere('lt.createdAt <= :to', { to: `${filter.to} 23:59:59` });
 
     const page = Number(filter.page ?? 1);
     const limit = Number(filter.limit ?? 20);
-    qb.orderBy('lt.created_at', 'DESC').skip((page - 1) * limit).take(limit);
+    qb.orderBy('lt.createdAt', 'DESC').skip((page - 1) * limit).take(limit);
 
     const [items, total] = await qb.getManyAndCount();
     return { data: items, meta: { total, page, limit } };

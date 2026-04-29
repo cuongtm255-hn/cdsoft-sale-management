@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Button, Space, Descriptions, Divider, Table, Typography, Spin, Tag,
+  Button, Space, Descriptions, Divider, Table, Tooltip, Typography, Spin, Tag,
 } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined, DownloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -47,7 +47,22 @@ export default function InvoiceDetail() {
 
   const itemColumns = [
     { title: '#', key: 'idx', width: 40, render: (_, __, i) => i + 1 },
-    { title: 'Tên sản phẩm', dataIndex: 'productName', key: 'name' },
+    {
+      title: 'Sản phẩm',
+      key: 'name',
+      render: (_, row) => {
+        const name = row.productName ?? '';
+        const truncated = name.length > 20;
+        return (
+          <span>
+            {row.productSku && <Typography.Text code>{row.productSku}</Typography.Text>}{' '}
+            {truncated
+              ? <Tooltip title={name}><span style={{ cursor: 'default' }}>{name.slice(0, 20)}…</span></Tooltip>
+              : name}
+          </span>
+        );
+      },
+    },
     { title: 'ĐVT', dataIndex: 'unit', key: 'unit', width: 80 },
     { title: 'SL', dataIndex: 'quantity', key: 'qty', width: 80 },
     { title: 'Đơn giá', dataIndex: 'unitPrice', key: 'price', width: 120, render: (v) => fmt(v) },
@@ -99,10 +114,11 @@ export default function InvoiceDetail() {
         <Descriptions.Item label="Mã đơn hàng">{invoice.orderCode ?? invoice.orderId}</Descriptions.Item>
         <Descriptions.Item label="Ngày phát hành">{dayjs(invoice.issuedAt).format('DD/MM/YYYY')}</Descriptions.Item>
         <Descriptions.Item label="Khách hàng">
-          <div>
-            <div style={{ fontWeight: 500 }}>{invoice.customer?.name ?? '—'}</div>
-            {invoice.customer?.taxCode && <div>MST: {invoice.customer.taxCode}</div>}
-          </div>
+          {invoice.customer?.code
+            ? <Tooltip title={invoice.customer.name}><Typography.Text code>{invoice.customer.code}</Typography.Text></Tooltip>
+            : '—'}
+          {invoice.customer?.name && <span style={{ marginLeft: 6 }}>{invoice.customer.name}</span>}
+          {invoice.customer?.taxCode && <div style={{ fontSize: 12, color: '#888' }}>MST: {invoice.customer.taxCode}</div>}
         </Descriptions.Item>
         <Descriptions.Item label="Hạn thanh toán">
           {invoice.dueDate ? dayjs(invoice.dueDate).format('DD/MM/YYYY') : '—'}

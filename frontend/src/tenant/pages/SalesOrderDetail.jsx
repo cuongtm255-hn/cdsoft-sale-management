@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
-  Button, Space, Descriptions, Divider, Modal, Input, message, Spin, Typography,
+  Button, Space, Descriptions, Divider, Modal, Input, message, Spin, Tooltip, Typography,
 } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import PageHeader from '@shared/components/PageHeader';
@@ -142,10 +142,14 @@ export default function SalesOrderDetail() {
       />
 
       <Descriptions bordered column={2} size="small" style={{ marginBottom: 24 }}>
-        <Descriptions.Item label="Khách hàng">{order.customer?.name ?? order.customerId}</Descriptions.Item>
+        <Descriptions.Item label="Khách hàng">
+          {order.customer?.code
+            ? <Tooltip title={order.customer.name}><span style={{ cursor: 'default' }}>{order.customer.code}</span></Tooltip>
+            : order.customerId ?? '—'}
+        </Descriptions.Item>
         <Descriptions.Item label="Ngày tạo">{dayjs(order.createdAt).format('DD/MM/YYYY HH:mm')}</Descriptions.Item>
         <Descriptions.Item label="NV phụ trách">{order.salesRep?.name ?? '—'}</Descriptions.Item>
-        <Descriptions.Item label="Kho xuất">{order.warehouseId ?? '—'}</Descriptions.Item>
+        <Descriptions.Item label="Kho xuất">{order.warehouse?.name ?? order.warehouseId ?? '—'}</Descriptions.Item>
         <Descriptions.Item label="Hình thức TT">{order.paymentMethod ?? '—'}</Descriptions.Item>
         <Descriptions.Item label="Địa chỉ giao">{order.shippingAddress ?? '—'}</Descriptions.Item>
         {order.notes && <Descriptions.Item label="Ghi chú" span={2}>{order.notes}</Descriptions.Item>}

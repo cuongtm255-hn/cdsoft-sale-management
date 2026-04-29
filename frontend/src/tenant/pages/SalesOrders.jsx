@@ -57,21 +57,21 @@ export default function SalesOrders() {
       key: 'customer',
       render: (_, row) => (
         <div>
-          <div style={{ fontWeight: 500 }}>{row.customer?.name ?? '—'}</div>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.customer?.code}</Typography.Text>
+          <div style={{ fontWeight: 500 }}>{row.customer_name ?? row.customer?.name ?? '—'}</div>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>{row.customer_code ?? row.customer?.code}</Typography.Text>
         </div>
       ),
     },
     {
       title: 'Tổng tiền',
-      dataIndex: 'totalAmount',
+      dataIndex: 'total_amount',
       key: 'total',
       width: 140,
       render: (v) => <Typography.Text strong>{fmt(v)}</Typography.Text>,
     },
     {
       title: 'Đã TT',
-      dataIndex: 'paidAmount',
+      dataIndex: 'paid_amount',
       key: 'paid',
       width: 120,
       render: (v) => fmt(v),
@@ -81,7 +81,7 @@ export default function SalesOrders() {
       key: 'debt',
       width: 120,
       render: (_, row) => {
-        const debt = (row.totalAmount ?? 0) - (row.paidAmount ?? 0);
+        const debt = Number(row.total_amount ?? 0) - Number(row.paid_amount ?? 0);
         return debt > 0 ? (
           <Typography.Text type="danger">{fmt(debt)}</Typography.Text>
         ) : <Typography.Text type="secondary">0₫</Typography.Text>;
@@ -91,7 +91,7 @@ export default function SalesOrders() {
       title: 'NV phụ trách',
       key: 'salesRep',
       width: 130,
-      render: (_, row) => row.salesRep?.name ?? '—',
+      render: (_, row) => row.sales_rep_name ?? row.salesRep?.name ?? '—',
     },
     {
       title: 'Trạng thái',
@@ -102,10 +102,10 @@ export default function SalesOrders() {
     },
     {
       title: 'Ngày tạo',
-      dataIndex: 'createdAt',
+      dataIndex: 'created_at',
       key: 'date',
       width: 110,
-      render: (v) => dayjs(v).format('DD/MM/YYYY'),
+      render: (v) => v ? dayjs(v).format('DD/MM/YYYY') : '—',
     },
   ];
 

@@ -111,25 +111,31 @@ export class InvoicesService {
 
   async listInvoices(filter: InvoiceFilterDto) {
     const ds = await this.getDs();
-    const qb = ds.getRepository(Invoice)
-      .createQueryBuilder('i')
-      .leftJoinAndMapOne('i.customer', 'customers', 'c', 'c.id = i.customer_id AND c.deleted_at IS NULL')
-      .where('i.deleted_at IS NULL');
-
-    if (filter.status) qb.andWhere('i.status = :status', { status: filter.status });
-    if (filter.customerId) qb.andWhere('i.customer_id = :customerId', { customerId: filter.customerId });
-    if (filter.from) qb.andWhere('i.issued_at >= :from', { from: filter.from });
-    if (filter.to) qb.andWhere('i.issued_at <= :to', { to: `${filter.to} 23:59:59` });
-    if (filter.search) {
-      qb.andWhere('(i.code LIKE :s)', { s: `%${filter.search}%` });
-    }
-
     const page = Number(filter.page ?? 1);
     const limit = Number(filter.limit ?? 20);
-    qb.orderBy('i.issued_at', 'DESC').skip((page - 1) * limit).take(limit);
+    const offset = (page - 1) * limit;
 
-    const [items, total] = await qb.getManyAndCount();
-    return { data: items, meta: { total, page, limit } };
+    const conditions: string[] = ['i.deleted_at IS NULL'];
+    const params: any[] = [];
+
+    if (filter.status) { conditions.push('i.status = ?'); params.push(filter.status); }
+    if (filter.customerId) { conditions.push('i.customer_id = ?'); params.push(filter.customerId); }
+    if (filter.from) { conditions.push('i.issued_at >= ?'); params.push(filter.from); }
+    if (filter.to) { conditions.push('i.issued_at <= ?'); params.push(`${filter.to} 23:59:59`); }
+    if (filter.search) { conditions.push('i.code LIKE ?'); params.push(`%${filter.search}%`); }
+
+    const where = conditions.join(' AND ');
+    const [rows, countResult] = await Promise.all([
+      ds.query(
+        `SELECT i.*, c.name AS customer_name, c.code AS customer_code
+         FROM invoices i
+         LEFT JOIN customers c ON c.id = i.customer_id AND c.deleted_at IS NULL
+         WHERE ${where} ORDER BY i.issued_at DESC LIMIT ? OFFSET ?`,
+        [...params, limit, offset],
+      ),
+      ds.query(`SELECT COUNT(*) AS total FROM invoices i WHERE ${where}`, params),
+    ]);
+    return { data: rows, meta: { total: Number(countResult[0]?.total ?? 0), page, limit } };
   }
 
   // ─── Get Invoice ──────────────────────────────────────────────────────────
@@ -142,14 +148,41 @@ export class InvoicesService {
     });
     if (!invoice) throw new NotFoundException(`Invoice ${id} not found`);
 
-    // Enrich with customer data
     const ds = await this.getDs();
-    const customers = await ds.query(
-      `SELECT id, name, tax_code, phone, email FROM customers WHERE id = ?`,
-      [invoice.customerId],
-    );
+    const [customers, orders, orderItems] = await Promise.all([
+      ds.query(
+        `SELECT id, name, code, tax_code, phone, email FROM customers WHERE id = ?`,
+        [invoice.customerId],
+      ),
+      invoice.orderId
+        ? ds.query(`SELECT id, code FROM orders WHERE id = ?`, [invoice.orderId])
+        : Promise.resolve([]),
+      invoice.orderId
+        ? ds.query(
+            `SELECT p.name AS productName, p.sku
+             FROM order_items oi
+             LEFT JOIN products p ON p.id = oi.product_id
+             WHERE oi.order_id = ?`,
+            [invoice.orderId],
+          )
+        : Promise.resolve([]),
+    ]);
 
-    return { ...invoice, customer: customers[0] ?? null };
+    // Build SKU map keyed by productName
+    const skuByName: Record<string, string> = {};
+    for (const row of orderItems) {
+      if (row.sku && row.productName) skuByName[row.productName] = row.sku;
+    }
+
+    return {
+      ...invoice,
+      customer: customers[0] ?? null,
+      orderCode: orders[0]?.code ?? null,
+      items: (invoice.items ?? []).map((item) => ({
+        ...item,
+        productSku: skuByName[item.productName] ?? null,
+      })),
+    };
   }
 
   // ─── Record Payment ───────────────────────────────────────────────────────
@@ -402,12 +435,12 @@ export class InvoicesService {
     const qb = repo.createQueryBuilder('cr').where('1=1');
 
     if (filter.kind) qb.andWhere('cr.kind = :kind', { kind: filter.kind });
-    if (filter.from) qb.andWhere('cr.created_at >= :from', { from: filter.from });
-    if (filter.to) qb.andWhere('cr.created_at <= :to', { to: `${filter.to} 23:59:59` });
+    if (filter.from) qb.andWhere('cr.createdAt >= :from', { from: filter.from });
+    if (filter.to) qb.andWhere('cr.createdAt <= :to', { to: `${filter.to} 23:59:59` });
 
     const page = Number(filter.page ?? 1);
     const limit = Number(filter.limit ?? 20);
-    qb.orderBy('cr.created_at', 'DESC').skip((page - 1) * limit).take(limit);
+    qb.orderBy('cr.createdAt', 'DESC').skip((page - 1) * limit).take(limit);
 
     const [items, total] = await qb.getManyAndCount();
     return { data: items, meta: { total, page, limit } };
