@@ -171,8 +171,8 @@ export class InventoryController {
 
   @Get('transfers')
   @ApiOperation({ summary: 'List stock transfers' })
-  getTransfers() {
-    return this.service.getTransfers();
+  getTransfers(@Query() filter: any) {
+    return this.service.getTransfers(filter);
   }
 
   @Get('transfers/:id')

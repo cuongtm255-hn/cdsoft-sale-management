@@ -89,6 +89,7 @@ export default function PurchaseOrders() {
       width: 200,
       render: (_, row) => (
         <Space size="small">
+          <Button size="small" onClick={() => navigate(`/tenant/purchase-orders/${row.id}`)}>Xem</Button>
           {row.status === 'DRAFT' && (
             <Button size="small" type="primary" onClick={() => handleConfirm(row.id)}>Xác nhận</Button>
           )}

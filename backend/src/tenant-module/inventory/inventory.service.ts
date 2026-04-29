@@ -578,7 +578,7 @@ export class InventoryService {
         't.created_at AS createdAt',
       ])
       .where('t.transaction_type = :type', { type: TxType.STOCK_OUT })
-      .orderBy('t.created_at', 'DESC');
+      .orderBy('t.createdAt', 'DESC');
 
     if (filter.warehouseId) qb.andWhere('t.warehouse_id = :wid', { wid: filter.warehouseId });
 
@@ -661,12 +661,35 @@ export class InventoryService {
     return this.getTransfer(transfer.id);
   }
 
-  async getTransfers() {
+  async getTransfers(filter: { page?: number; limit?: number; status?: string } = {}) {
     const repo = await this.getRepo(StockTransfer);
-    return repo.createQueryBuilder('t')
+    const page = Number(filter.page ?? 1);
+    const limit = Number(filter.limit ?? 20);
+
+    const qb = repo.createQueryBuilder('t')
       .leftJoinAndSelect('t.items', 'items')
       .orderBy('t.createdAt', 'DESC')
-      .getMany();
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (filter.status) qb.where('t.status = :status', { status: filter.status });
+
+    const [transfers, total] = await qb.getManyAndCount();
+
+    const ds = await this.getDs();
+    const whIds = [...new Set(transfers.flatMap((t) => [t.fromWarehouseId, t.toWarehouseId]))];
+    const whRows = whIds.length
+      ? await ds.query(`SELECT id, name FROM warehouses WHERE id IN (${whIds.map(() => '?').join(',')})`, whIds)
+      : [];
+    const whMap: Record<string, string> = Object.fromEntries(whRows.map((w: any) => [w.id, w.name]));
+
+    const data = transfers.map((t) => ({
+      ...t,
+      fromWarehouseName: whMap[t.fromWarehouseId],
+      toWarehouseName: whMap[t.toWarehouseId],
+    }));
+
+    return { data, total, page, limit };
   }
 
   async getTransfer(id: string) {
@@ -676,7 +699,33 @@ export class InventoryService {
       .where('t.id = :id', { id })
       .getOne();
     if (!t) throw new NotFoundException(`Transfer ${id} not found`);
-    return t;
+
+    const ds = await this.getDs();
+    
+    const productIds = [...new Set((t.items ?? []).map((i) => i.productId))];
+    const unitIds = [...new Set((t.items ?? []).filter((i) => i.unitId).map((i) => i.unitId!))];
+
+    const [whRows, productRows, unitRows] = await Promise.all([
+      ds.query('SELECT id, name FROM warehouses WHERE id IN (?, ?)', [t.fromWarehouseId, t.toWarehouseId]),
+      productIds.length ? ds.query(`SELECT id, name, sku FROM products WHERE id IN (${productIds.map(() => '?').join(',')})`, productIds) : Promise.resolve([]),
+      unitIds.length ? ds.query(`SELECT id, name FROM product_units WHERE id IN (${unitIds.map(() => '?').join(',')})`, unitIds) : Promise.resolve([]),
+    ]);
+
+    const whMap: Record<string, string> = Object.fromEntries(whRows.map((w: any) => [w.id, w.name]));
+    const productMap: Record<string, any> = Object.fromEntries(productRows.map((p: any) => [p.id, p]));
+    const unitMap: Record<string, any> = Object.fromEntries(unitRows.map((u: any) => [u.id, u]));
+
+    return {
+      ...t,
+      fromWarehouseName: whMap[t.fromWarehouseId],
+      toWarehouseName: whMap[t.toWarehouseId],
+      items: (t.items ?? []).map((item) => ({
+        ...item,
+        productSku: productMap[item.productId]?.sku,
+        productName: productMap[item.productId]?.name,
+        unitName: item.unitId ? unitMap[item.unitId]?.name : null,
+      })),
+    };
   }
 
   async dispatchTransfer(id: string, userId: string) {

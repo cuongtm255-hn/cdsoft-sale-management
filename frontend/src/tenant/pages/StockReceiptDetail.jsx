@@ -4,11 +4,12 @@ import {
   Button, Card, Col, Descriptions, Divider, Popconfirm, Row,
   Space, Spin, Table, Tag, Tooltip, Typography,
 } from 'antd';
-import { ArrowLeftOutlined, CheckOutlined, CloseOutlined, EditOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CheckOutlined, CloseOutlined, EditOutlined, PrinterOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import PageHeader from '@shared/components/PageHeader';
 import { useApi } from '@shared/hooks/useApi';
 import { inventoryApi } from '@api/tenant.api';
+import { printStockReceipt } from '@shared/utils/printDocument';
 
 const STATUS_COLORS = { DRAFT: 'orange', CONFIRMED: 'green', CANCELLED: 'default' };
 const STATUS_LABELS = { DRAFT: 'Nháp', CONFIRMED: 'Đã xác nhận', CANCELLED: 'Đã hủy' };
@@ -122,8 +123,10 @@ export default function StockReceiptDetail() {
           </Space>
         }
         extra={
-          isDraft && (
-            <Space>
+          <Space>
+            <Button icon={<PrinterOutlined />} onClick={() => printStockReceipt(receipt)}>In phiếu</Button>
+            {isDraft && (
+              <>
               <Button icon={<EditOutlined />} onClick={() => navigate(`/tenant/inventory/receipts/${id}/edit`)}>
                 Chỉnh sửa
               </Button>
@@ -146,8 +149,9 @@ export default function StockReceiptDetail() {
                   Hủy phiếu
                 </Button>
               </Popconfirm>
-            </Space>
-          )
+              </>
+            )}
+          </Space>
         }
       />
 

@@ -15,38 +15,44 @@ export default function TransferForm() {
   const [form] = Form.useForm();
   const [warehouses, setWarehouses] = useState([]);
   const [productOptions, setProductOptions] = useState([]);
-  const [productSearch, setProductSearch] = useState('');
   const [unitOptions, setUnitOptions] = useState({});
   const [productMap, setProductMap] = useState({});
 
-  useEffect(() => {
-    warehousesApi.list().then((res) => {
-      const list = res.data?.data ?? res.data ?? [];
-      setWarehouses(list.map((w) => ({ label: w.name, value: w.id })));
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!productSearch) return;
-    productsApi.list({ search: productSearch, limit: 30 }).then((res) => {
+  const loadProducts = (search = '') => {
+    productsApi.list({ search: search || undefined, limit: 100 }).then((res) => {
       const list = res.data?.data?.data ?? res.data?.data ?? [];
       setProductOptions(list.map((p) => ({ label: `${p.sku} — ${p.name}`, value: p.id })));
       const map = {};
       list.forEach((p) => { map[p.id] = p; });
       setProductMap((prev) => ({ ...prev, ...map }));
     });
-  }, [productSearch]);
+  };
 
-  const handleProductSelect = (productId, index) => {
-    const product = productMap[productId];
-    if (!product) return;
-    const units = (product.units ?? []).map((u) => ({ label: u.name, value: u.id }));
-    setUnitOptions((prev) => ({ ...prev, [index]: units }));
+  useEffect(() => {
+    warehousesApi.list().then((res) => {
+      const list = res.data?.data ?? res.data ?? [];
+      setWarehouses(list.map((w) => ({ label: w.name, value: w.id })));
+    });
+    loadProducts();
+  }, []);
+
+  const handleProductSelect = async (productId, index) => {
+    let product = productMap[productId];
+    if (!product?.units) {
+      const res = await productsApi.get(productId);
+      product = res.data?.data ?? res.data;
+      setProductMap((prev) => ({ ...prev, [productId]: product }));
+    }
+    const baseOpt = { label: product.baseUnit || 'Đơn vị cơ bản', value: null };
+    const convOpts = (product.units ?? [])
+      .filter((u) => !u.isBase)
+      .map((u) => ({ label: `${u.name} (×${Number(u.conversionRate)})`, value: u.id }));
+    setUnitOptions((prev) => ({ ...prev, [index]: [baseOpt, ...convOpts] }));
   };
 
   const { execute: submit, loading } = useApi(inventoryApi.createTransfer, {
     successMessage: 'Lệnh điều chuyển đã được tạo',
-    onSuccess: () => navigate('/tenant/inventory'),
+    onSuccess: () => navigate('/tenant/inventory/transfers'),
   });
 
   const handleSubmit = (values) => {
@@ -63,7 +69,7 @@ export default function TransferForm() {
       <PageHeader
         title={
           <Space>
-            <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate('/tenant/inventory')} />
+            <Button icon={<ArrowLeftOutlined />} type="text" onClick={() => navigate('/tenant/inventory/transfers')} />
             Lệnh điều chuyển kho mới
           </Space>
         }
@@ -109,7 +115,7 @@ export default function TransferForm() {
                       <Select
                         showSearch
                         options={productOptions}
-                        onSearch={setProductSearch}
+                        onSearch={(v) => loadProducts(v)}
                         filterOption={false}
                         placeholder="Tìm sản phẩm"
                         onChange={(v) => handleProductSelect(v, name)}

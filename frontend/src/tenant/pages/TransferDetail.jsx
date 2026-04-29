@@ -2,15 +2,16 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Button, Card, Descriptions, Divider, Popconfirm, Space,
-  Spin, Table, Tag, Typography,
+  Spin, Table, Tag, Typography, Tooltip,
 } from 'antd';
 import {
-  ArrowLeftOutlined, CheckOutlined, CloseOutlined, SendOutlined,
+  ArrowLeftOutlined, CheckOutlined, CloseOutlined, PrinterOutlined, SendOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import PageHeader from '@shared/components/PageHeader';
 import { useApi } from '@shared/hooks/useApi';
 import { inventoryApi } from '@api/tenant.api';
+import { printStockTransfer } from '@shared/utils/printDocument';
 
 const STATUS_COLORS = {
   PENDING: 'blue',
@@ -55,8 +56,25 @@ export default function TransferDetail() {
   const isInTransit = transfer.status === 'IN_TRANSIT';
 
   const itemColumns = [
-    { title: 'Sản phẩm', dataIndex: 'productId', key: 'productId' },
-    { title: 'Đơn vị', dataIndex: 'unitId', key: 'unitId', render: (v) => v || '—' },
+    {
+      title: 'Sản phẩm',
+      key: 'productId',
+      render: (_, row) => {
+        const name = row.productName ?? '';
+        const truncated = name.length > 20;
+        return (
+          <span>
+            <Typography.Text code>{row.productSku ?? row.productId}</Typography.Text>{' '}
+            {truncated ? (
+              <Tooltip title={name}>
+                <span style={{ cursor: 'default' }}>{name.slice(0, 20)}…</span>
+              </Tooltip>
+            ) : name}
+          </span>
+        );
+      },
+    },
+    { title: 'Đơn vị', key: 'unitId', render: (_, row) => row.unitName || row.unitId || '—' },
     {
       title: 'SL điều chuyển',
       dataIndex: 'quantity',
@@ -91,6 +109,7 @@ export default function TransferDetail() {
         }
         extra={
           <Space>
+            <Button icon={<PrinterOutlined />} onClick={() => printStockTransfer(transfer)}>In phiếu</Button>
             {isPending && (
               <Popconfirm
                 title="Xác nhận xuất kho để bắt đầu vận chuyển?"
@@ -122,8 +141,8 @@ export default function TransferDetail() {
 
       <Card style={{ marginBottom: 16 }}>
         <Descriptions column={3} size="small">
-          <Descriptions.Item label="Kho đi">{transfer.fromWarehouseId}</Descriptions.Item>
-          <Descriptions.Item label="Kho đến">{transfer.toWarehouseId}</Descriptions.Item>
+          <Descriptions.Item label="Kho đi">{transfer.fromWarehouseName || transfer.fromWarehouseId}</Descriptions.Item>
+          <Descriptions.Item label="Kho đến">{transfer.toWarehouseName || transfer.toWarehouseId}</Descriptions.Item>
           <Descriptions.Item label="Ngày dự kiến">
             {transfer.expectedDate ? dayjs(transfer.expectedDate).format('DD/MM/YYYY') : '—'}
           </Descriptions.Item>

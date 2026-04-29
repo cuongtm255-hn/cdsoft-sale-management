@@ -37,6 +37,7 @@ import TransferReceivePage from '@tenant/pages/TransferReceivePage';
 import StocktakingPage from '@tenant/pages/StocktakingPage';
 import PurchaseOrders from '@tenant/pages/PurchaseOrders';
 import PurchaseOrderForm from '@tenant/pages/PurchaseOrderForm';
+import PurchaseOrderDetail from '@tenant/pages/PurchaseOrderDetail';
 import SalesOrders from '@tenant/pages/SalesOrders';
 import SalesOrderForm from '@tenant/pages/SalesOrderForm';
 import SalesOrderDetail from '@tenant/pages/SalesOrderDetail';
@@ -125,6 +126,7 @@ export default function AppRouter() {
 
         <Route path="purchase-orders" element={<PurchaseOrders />} />
         <Route path="purchase-orders/new" element={<PurchaseOrderForm />} />
+        <Route path="purchase-orders/:id" element={<PurchaseOrderDetail />} />
         <Route path="sales-orders" element={<SalesOrders />} />
         <Route path="sales-orders/new" element={<SalesOrderForm />} />
         <Route path="sales-orders/:id" element={<SalesOrderDetail />} />

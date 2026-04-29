@@ -42,15 +42,17 @@ export default function TransfersList() {
   const columns = [
     {
       title: 'Kho đi',
-      dataIndex: 'fromWarehouseId',
-      key: 'fromWarehouseId',
+      dataIndex: 'fromWarehouseName',
+      key: 'fromWarehouseName',
       width: 150,
+      render: (v, row) => v || row.fromWarehouseId,
     },
     {
       title: 'Kho đến',
-      dataIndex: 'toWarehouseId',
-      key: 'toWarehouseId',
+      dataIndex: 'toWarehouseName',
+      key: 'toWarehouseName',
       width: 150,
+      render: (v, row) => v || row.toWarehouseId,
     },
     {
       title: 'Trạng thái',

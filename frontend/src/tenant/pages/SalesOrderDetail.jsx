@@ -3,13 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Button, Space, Descriptions, Divider, Modal, Input, message, Spin, Typography,
 } from 'antd';
-import { ArrowLeftOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import PageHeader from '@shared/components/PageHeader';
 import OrderStatusBadge from '@shared/components/OrderStatusBadge';
 import OrderItemsTable from '@shared/components/OrderItemsTable';
 import OrderSummaryPanel from '@shared/components/OrderSummaryPanel';
 import { useApi } from '@shared/hooks/useApi';
 import { salesOrdersApi } from '@api/tenant.api';
+import { printSalesOrder } from '@shared/utils/printDocument';
 import dayjs from 'dayjs';
 
 const fmt = (v) => Number(v || 0).toLocaleString('vi-VN') + '₫';
@@ -126,6 +127,7 @@ export default function SalesOrderDetail() {
         }
         extra={
           <Space>
+            <Button icon={<PrinterOutlined />} onClick={() => printSalesOrder(order)}>In phiếu</Button>
             {isDraft && <Button onClick={handleConfirm} type="primary">Xác nhận</Button>}
             {isConfirmed && <Button onClick={handleShip}>Xuất kho / Giao hàng</Button>}
             {isDelivering && <Button type="primary" onClick={handleComplete}>Hoàn thành</Button>}
