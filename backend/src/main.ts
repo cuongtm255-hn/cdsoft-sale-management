@@ -34,6 +34,12 @@ async function bootstrap() {
 
   await app.listen(port);
   console.log(`Application running on port ${port}`);
+  await app.init();
+
+  // for vercel
+  const expressApp = app.getHttpAdapter().getInstance();
+  return expressApp;
 }
 
-bootstrap();
+export default bootstrap();
+// bootstrap();
