@@ -67,7 +67,7 @@ function NewPaymentModal({ open, onClose, onSuccess }) {
     const inv = invoiceMap[id];
     setSelectedInvoice(inv ?? null);
     if (inv) {
-      const remaining = Number(inv.totalAmount) - Number(inv.paidAmount);
+      const remaining = Number(inv.total_amount ?? inv.totalAmount ?? 0) - Number(inv.paid_amount ?? inv.paidAmount ?? 0);
       form.setFieldValue('amount', remaining);
     }
   };
@@ -100,7 +100,7 @@ function NewPaymentModal({ open, onClose, onSuccess }) {
   };
 
   const remaining = selectedInvoice
-    ? Number(selectedInvoice.totalAmount) - Number(selectedInvoice.paidAmount)
+    ? Number(selectedInvoice.total_amount ?? selectedInvoice.totalAmount ?? 0) - Number(selectedInvoice.paid_amount ?? selectedInvoice.paidAmount ?? 0)
     : 0;
 
   return (
@@ -128,8 +128,8 @@ function NewPaymentModal({ open, onClose, onSuccess }) {
 
         {selectedInvoice && (
           <Descriptions size="small" column={2} style={{ marginBottom: 12 }}>
-            <Descriptions.Item label="Tổng tiền">{fmt(selectedInvoice.totalAmount)}</Descriptions.Item>
-            <Descriptions.Item label="Đã TT">{fmt(selectedInvoice.paidAmount)}</Descriptions.Item>
+            <Descriptions.Item label="Tổng tiền">{fmt(selectedInvoice.total_amount ?? selectedInvoice.totalAmount)}</Descriptions.Item>
+            <Descriptions.Item label="Đã TT">{fmt(selectedInvoice.paid_amount ?? selectedInvoice.paidAmount)}</Descriptions.Item>
             <Descriptions.Item label={<Typography.Text type="danger">Còn lại</Typography.Text>}>
               <Typography.Text type="danger" strong>{fmt(remaining)}</Typography.Text>
             </Descriptions.Item>
@@ -227,18 +227,18 @@ export default function Payments() {
     {
       title: 'Khách hàng',
       key: 'customer',
-      render: (_, row) => row.customer?.name ?? row.customerId ?? '—',
+      render: (_, row) => row.customer_name ?? row.customer?.name ?? row.customerId ?? '—',
     },
     {
       title: 'Tổng tiền',
-      dataIndex: 'totalAmount',
+      dataIndex: 'total_amount',
       key: 'total',
       width: 140,
       render: (v) => <Typography.Text strong>{fmt(v)}</Typography.Text>,
     },
     {
       title: 'Đã thanh toán',
-      dataIndex: 'paidAmount',
+      dataIndex: 'paid_amount',
       key: 'paid',
       width: 140,
       render: (v) => fmt(v),
@@ -248,7 +248,7 @@ export default function Payments() {
       key: 'remaining',
       width: 130,
       render: (_, row) => {
-        const rem = Number(row.totalAmount) - Number(row.paidAmount);
+        const rem = Number(row.total_amount) - Number(row.paid_amount);
         return rem > 0
           ? <Typography.Text type="danger">{fmt(rem)}</Typography.Text>
           : <Typography.Text type="secondary">0₫</Typography.Text>;
@@ -256,10 +256,10 @@ export default function Payments() {
     },
     {
       title: 'Hạn TT',
-      dataIndex: 'dueDate',
       key: 'due',
       width: 110,
-      render: (v) => {
+      render: (_, row) => {
+        const v = row.due_date ?? row.dueDate;
         if (!v) return '—';
         const isOverdue = dayjs(v).isBefore(dayjs(), 'day');
         return (

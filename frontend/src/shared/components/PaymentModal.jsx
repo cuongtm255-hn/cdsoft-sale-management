@@ -19,7 +19,7 @@ export default function PaymentModal({ open, invoice, onClose, onPaid }) {
   const method = Form.useWatch('method', form);
 
   const remaining = invoice
-    ? Number(invoice.totalAmount) - Number(invoice.paidAmount)
+    ? Number(invoice.total_amount ?? invoice.totalAmount ?? 0) - Number(invoice.paid_amount ?? invoice.paidAmount ?? 0)
     : 0;
 
   useEffect(() => {
@@ -85,8 +85,8 @@ export default function PaymentModal({ open, invoice, onClose, onPaid }) {
     >
       {invoice && (
         <Descriptions size="small" column={1} style={{ marginBottom: 16 }}>
-          <Descriptions.Item label="Tổng tiền">{fmt(invoice.totalAmount)}</Descriptions.Item>
-          <Descriptions.Item label="Đã thanh toán">{fmt(invoice.paidAmount)}</Descriptions.Item>
+          <Descriptions.Item label="Tổng tiền">{fmt(invoice.total_amount ?? invoice.totalAmount)}</Descriptions.Item>
+          <Descriptions.Item label="Đã thanh toán">{fmt(invoice.paid_amount ?? invoice.paidAmount)}</Descriptions.Item>
           <Descriptions.Item label={<Typography.Text type="danger">Còn lại</Typography.Text>}>
             <Typography.Text type="danger" strong>{fmt(remaining)}</Typography.Text>
           </Descriptions.Item>
