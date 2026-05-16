@@ -1,0 +1,26 @@
+# .claudeignore
+# --- Cấu trúc chung (Global) ---
+.DS_Store
+.env*
+!.env.example
+.git/
+.husky/
+.vscode/
+.idea/
+claude-logs/
+
+# --- NestJS (BE) ---
+backend/node_modules/
+backend/dist/
+backend/coverage/
+backend/*.log
+backend/tmp/
+
+# --- NextJS (FE) ---
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/public/assets/
+frontend/*.log
+frontend/.cache/
