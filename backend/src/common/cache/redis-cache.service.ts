@@ -7,6 +7,8 @@ export class RedisCacheService {
   private readonly redis: Redis | null = null;
   private readonly logger = new Logger(RedisCacheService.name);
 
+  private readonly prefix = 'sale-platform-';
+
   constructor(config: ConfigService) {
     const url = config.get<string>('cache.upstashUrl');
     const token = config.get<string>('cache.upstashToken');
@@ -20,29 +22,32 @@ export class RedisCacheService {
 
   async get<T>(key: string): Promise<T | null> {
     if (!this.redis) return null;
+    const prefixedKey = `${this.prefix}${key}`;
     try {
-      return await this.redis.get<T>(key);
+      return await this.redis.get<T>(prefixedKey);
     } catch (e: any) {
-      this.logger.warn(`Cache GET failed [${key}]: ${e.message}`);
+      this.logger.warn(`Cache GET failed [${prefixedKey}]: ${e.message}`);
       return null;
     }
   }
 
   async set(key: string, value: unknown, ttlSeconds: number): Promise<void> {
     if (!this.redis) return;
+    const prefixedKey = `${this.prefix}${key}`;
     try {
-      await this.redis.set(key, value, { ex: ttlSeconds });
+      await this.redis.set(prefixedKey, value, { ex: ttlSeconds });
     } catch (e: any) {
-      this.logger.warn(`Cache SET failed [${key}]: ${e.message}`);
+      this.logger.warn(`Cache SET failed [${prefixedKey}]: ${e.message}`);
     }
   }
 
   async del(...keys: string[]): Promise<void> {
     if (!this.redis || keys.length === 0) return;
+    const prefixedKeys = keys.map((k) => `${this.prefix}${k}`);
     try {
-      await this.redis.del(...keys);
+      await this.redis.del(...prefixedKeys);
     } catch (e: any) {
-      this.logger.warn(`Cache DEL failed [${keys.join(', ')}]: ${e.message}`);
+      this.logger.warn(`Cache DEL failed [${prefixedKeys.join(', ')}]: ${e.message}`);
     }
   }
 

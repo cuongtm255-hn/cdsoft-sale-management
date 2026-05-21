@@ -6,7 +6,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { TenantsService } from './tenants.service';
-import { CreateTenantDto, UpdateTenantDto, UpdateTenantStatusDto } from './dto/create-tenant.dto';
+import { CreateTenantDto, UpdateTenantDto, UpdateTenantStatusDto, CreateTenantMachineDto } from './dto/create-tenant.dto';
 
 @ApiTags('Platform / Tenants')
 @ApiBearerAuth()
@@ -45,5 +45,19 @@ export class TenantsController {
   @Roles('SUPER_ADMIN')
   updateStatus(@Param('id') id: string, @Body() dto: UpdateTenantStatusDto) {
     return this.service.updateStatus(id, dto);
+  }
+
+  @Get(':id/machines')
+  @Roles('SUPER_ADMIN', 'PLATFORM_OPERATOR')
+  @ApiOperation({ summary: 'List tenant machines' })
+  getMachines(@Param('id') id: string) {
+    return this.service.getMachines(id);
+  }
+
+  @Post(':id/machines')
+  @Roles('SUPER_ADMIN')
+  @ApiOperation({ summary: 'Add a new machine to external tenant' })
+  addMachine(@Param('id') id: string, @Body() dto: CreateTenantMachineDto) {
+    return this.service.addMachine(id, dto);
   }
 }

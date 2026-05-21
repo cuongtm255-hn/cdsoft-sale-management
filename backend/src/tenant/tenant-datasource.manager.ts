@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource } from '@nestjs/typeorm';
+import * as crypto from 'crypto';
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { AddStocktakingAndInventoryLots1745700000000 } from '../database/tenant-migrations/1745700000000-AddStocktakingAndInventoryLots';
@@ -88,13 +89,54 @@ export class TenantDataSourceManager {
     await this.evict(tenantCode);
   }
 
+  private getEncryptionKey(): Buffer {
+    const keyHex = this.config.get<string>('database.passwordKey');
+    if (keyHex && keyHex.length === 64) {
+      try {
+        return Buffer.from(keyHex, 'hex');
+      } catch (err) {
+        this.logger.error('Failed to parse TENANT_DB_PASSWORD_KEY as hex, falling back to hashed key');
+      }
+    }
+    const fallbackSeed = keyHex || 'default-salesplatform-tenant-encryption-seed';
+    return crypto.createHash('sha256').update(fallbackSeed).digest();
+  }
+
+  private encrypt(plainText: string): string {
+    const key = this.getEncryptionKey();
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    let encrypted = cipher.update(plainText, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return `${iv.toString('hex')}:${encrypted}`;
+  }
+
+  private decrypt(cipherText: string): string {
+    const key = this.getEncryptionKey();
+    const [ivHex, encryptedText] = cipherText.split(':');
+    if (!ivHex || !encryptedText) {
+      throw new Error('Invalid cipher text format');
+    }
+    const iv = Buffer.from(ivHex, 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  }
+
   private async resolveTenantDbConfig(tenantCode: string): Promise<TenantDbConfig> {
     const cacheKey = `tenant:config:${tenantCode}`;
 
-    const cached = await this.cache.get<TenantDbConfig>(cacheKey);
-    if (cached) {
-      this.logger.debug(`Tenant config cache HIT: ${tenantCode}`);
-      return cached;
+    const cachedEncrypted = await this.cache.get<string>(cacheKey);
+    if (cachedEncrypted) {
+      try {
+        const decrypted = this.decrypt(cachedEncrypted);
+        const cached = JSON.parse(decrypted) as TenantDbConfig;
+        this.logger.debug(`Tenant config cache HIT: ${tenantCode}`);
+        return cached;
+      } catch (err: any) {
+        this.logger.warn(`Failed to decrypt cached tenant config for ${tenantCode}: ${err.message}`);
+      }
     }
 
     const [tenant] = await this.platformDs.query(
@@ -118,7 +160,14 @@ export class TenantDataSourceManager {
       database: tenant.db_name,
     };
 
-    await this.cache.set(cacheKey, dbConfig, TENANT_CONFIG_TTL);
+    try {
+      const serialized = JSON.stringify(dbConfig);
+      const encrypted = this.encrypt(serialized);
+      await this.cache.set(cacheKey, encrypted, TENANT_CONFIG_TTL);
+    } catch (err: any) {
+      this.logger.error(`Failed to cache tenant config for ${tenantCode}: ${err.message}`);
+    }
+
     return dbConfig;
   }
 }

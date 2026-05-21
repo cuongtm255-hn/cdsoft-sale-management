@@ -13,6 +13,8 @@ export const tenantsApi = {
   reprovision: (id) => platformApi.post(`/platform/tenants/${id}/provision`),
   resetAdmin: (id) => platformApi.post(`/platform/tenants/${id}/reset-admin`),
   provisioningLog: (id) => platformApi.get(`/platform/tenants/${id}/provisioning-log`),
+  getMachines: (id) => platformApi.get(`/platform/tenants/${id}/machines`),
+  addMachine: (id, data) => platformApi.post(`/platform/tenants/${id}/machines`, data),
 };
 
 export const platformUsersApi = {

@@ -58,8 +58,8 @@ export class ChatbotQuotaService {
   /** Pre-flight check before invoking OpenAI. Throws when over quota. Increments both counters atomically. */
   async checkAndConsume(tenantCode: string, userId: string): Promise<{ globalUsed: number; userUsed: number }> {
     const date = this.todayKey();
-    const globalKey = `chatbot:quota:global:${date}`;
-    const userKey = `chatbot:quota:user:${tenantCode}:${userId}:${date}`;
+    const globalKey = `sale-platform-chatbot:quota:global:${date}`;
+    const userKey = `sale-platform-chatbot:quota:user:${tenantCode}:${userId}:${date}`;
 
     // Peek first to avoid charging the counter on rejection.
     const [globalUsed, userUsed] = await Promise.all([this.peek(globalKey), this.peek(userKey)]);
@@ -79,8 +79,8 @@ export class ChatbotQuotaService {
   async getStatus(tenantCode: string, userId: string) {
     const date = this.todayKey();
     const [globalUsed, userUsed] = await Promise.all([
-      this.peek(`chatbot:quota:global:${date}`),
-      this.peek(`chatbot:quota:user:${tenantCode}:${userId}:${date}`),
+      this.peek(`sale-platform-chatbot:quota:global:${date}`),
+      this.peek(`sale-platform-chatbot:quota:user:${tenantCode}:${userId}:${date}`),
     ]);
     return {
       date,

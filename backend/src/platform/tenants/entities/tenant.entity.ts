@@ -1,5 +1,6 @@
 import { Column, Entity, OneToMany } from 'typeorm';
 import { BaseEntity } from '../../../common/entities/base.entity';
+import { TenantMachine } from './tenant-machine.entity';
 
 export enum TenantStatus {
   ACTIVE = 'ACTIVE',
@@ -61,4 +62,13 @@ export class Tenant extends BaseEntity {
 
   @Column({ nullable: true })
   createdBy?: string;
+
+  @Column({ default: false })
+  isExternalProduct: boolean;
+
+  @Column({ length: 150, nullable: true })
+  externalProductName?: string;
+
+  @OneToMany(() => TenantMachine, (machine) => machine.tenant)
+  machines: TenantMachine[];
 }

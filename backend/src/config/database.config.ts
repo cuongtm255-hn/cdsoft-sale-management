@@ -13,4 +13,5 @@ export default registerAs('database', () => ({
   tenantDbPassword: process.env.TENANT_DB_PASSWORD || process.env.DB_PASSWORD,
   tenantDbSsl: process.env.TENANT_DB_SSL === 'true' || process.env.DB_SSL === 'true',
   dsCacheTtlMinutes: parseInt(process.env.DS_CACHE_TTL_MINUTES || '60', 10),
+  passwordKey: process.env.TENANT_DB_PASSWORD_KEY || '',
 }));
