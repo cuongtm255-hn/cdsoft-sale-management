@@ -122,7 +122,8 @@ function buildRouteInstruction(plan: ChatRoutePlan) {
       '- Tra loi di thang vao noi dung huong dan, khong mo dau hay giai thich pham vi ho tro.',
       '- Neu tim thay huong dan, uu tien tra loi bang 3-7 buoc ngan gon.',
       '- Khong hoi lai ve phien ban, ten man hinh hay anh chup man hinh neu tai lieu da du de tra loi.',
-      '- Khong nhac ten cong ty, san pham hay thuong hieu.',
+      '- Khong nhac ten cong ty, san pham, thuong hieu hay ten tai lieu nguon.',
+      '- Khong them ghi chu nguon goc kieu "(dua tren tai lieu huong dan)", "(theo huong dan)", "(CDSoft)" hay bat ky attribution nao.',
       '- Khong de nghi hay goi y them sau khi tra loi xong.',
     ].join('\n');
   }

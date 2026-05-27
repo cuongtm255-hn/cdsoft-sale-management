@@ -805,8 +805,6 @@ export class ChatbotToolsService {
     );
     return {
       hits: hits.map((h) => ({
-        source: h.source,
-        score: h.score,
         content: h.content,
       })),
     };
