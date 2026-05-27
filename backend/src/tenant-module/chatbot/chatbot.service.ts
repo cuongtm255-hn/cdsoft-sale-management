@@ -29,16 +29,22 @@ export type StreamEvent =
   | { type: 'done' }
   | { type: 'error'; message: string; errorCode?: string };
 
-const BASE_SYSTEM_PROMPT = `Ban la tro ly cho mot phan mem quan ly ban hang.
+const BASE_SYSTEM_PROMPT = `Ban la chatbot ho tro khach hang cua mot phan mem quan ly ban hang.
 
-Yeu cau chung:
-- Tra loi bang tieng Viet ngan gon, ro rang, huong toi nguoi dung thong thuong.
-- Khong nhac ten cong ty, ten thuong hieu, ten san pham, ten he thong hay phien ban trong cau tra loi neu nguoi dung khong nhac toi.
-- Khong dung cac cau dan nhu "Hien tai bot chi ho tro..." neu khong thuc su can thiet.
-- Khong mo dau bang "Tuy vay", "Ngoai ra", "Ban co muon..." neu khong can.
-- Neu day la huong dan thao tac, di thang vao cac buoc can lam.
-- Neu day la cau hoi du lieu nghiep vu, chi duoc tra loi dua tren ket qua tool.
-- Khong bia du lieu.`;
+Xung ho:
+- Luon dung "ban" de chi nguoi dung, bat ke lich su hoi thoai truoc do.
+- Khong dung "anh", "chi", "em", "quy khach" du nguoi dung tu gioi thieu hay yeu cau.
+
+Cach tra loi:
+- Ngan gon, ro rang, di thang vao van de.
+- Khong mo dau bang "Tuy vay", "Ngoai ra", "Nhu vay la", "Da ro rang la".
+- Khong co cau ket thuc kieu "Hy vong dieu nay giup ich", "Neu co gi can toi giup them", "Ban co can them gi khong".
+- Sau khi tra loi xong, khong de xuat, goi y them hay hoi them: khong dung "Neu ban muon...", "Ban co muon toi...", "Ban co the thu...", "Ngoai ra ban co the...".
+- Khong giai thich pham vi ho tro khi khong can thiet.
+- Khong nhac ten cong ty, thuong hieu, ten he thong hay phien ban.
+
+Nguyen tac du lieu:
+- Neu day la cau hoi du lieu nghiep vu, chi tra loi dua tren ket qua tool, khong bia du lieu.`;
 
 const CHATBOT_TIMEZONE = 'Asia/Bangkok';
 
@@ -113,10 +119,11 @@ function buildRouteInstruction(plan: ChatRoutePlan) {
       'Route: RAG_GUIDE.',
       '- Day la cau hoi huong dan thao tac.',
       '- Luon dung ragSearch truoc khi tra loi.',
-      '- Cau tra loi phai di thang vao noi dung huong dan, khong can cau mo dau xin loi hay giai thich pham vi ho tro.',
+      '- Tra loi di thang vao noi dung huong dan, khong mo dau hay giai thich pham vi ho tro.',
       '- Neu tim thay huong dan, uu tien tra loi bang 3-7 buoc ngan gon.',
-      '- Khong hoi lai ve phien ban, ten man hinh, thuong hieu hay anh chup man hinh neu tai lieu da du de tra loi.',
-      '- Khong nhac ten cong ty, ten san pham hay thuong hieu trong cau tra loi.',
+      '- Khong hoi lai ve phien ban, ten man hinh hay anh chup man hinh neu tai lieu da du de tra loi.',
+      '- Khong nhac ten cong ty, san pham hay thuong hieu.',
+      '- Khong de nghi hay goi y them sau khi tra loi xong.',
     ].join('\n');
   }
 
@@ -128,6 +135,7 @@ function buildRouteInstruction(plan: ChatRoutePlan) {
       '- Neu user da neu ro bo loc thi phai truyen dung bo loc vao tool.',
       '- Uu tien cau tra loi ngan, ro, dang bullet hoac bang ngan gon.',
       '- Tranh cach dien dat ky thuat khong can thiet.',
+      '- Khong de nghi hay goi y them sau khi tra loi xong.',
     ].join('\n');
   }
 
@@ -135,7 +143,7 @@ function buildRouteInstruction(plan: ChatRoutePlan) {
     'Route: UNCERTAIN.',
     '- Neu cau hoi co ve la du lieu nghiep vu thi dung tool.',
     '- Neu cau hoi co ve la huong dan thao tac thi dung ragSearch neu duoc cap.',
-    '- Neu van thieu ngu canh thi hoi lai ngan gon.',
+    '- Neu van thieu ngu canh thi hoi lai ngan gon mot cau, khong de nghi nhieu lua chon.',
   ].join('\n');
 }
 
@@ -145,15 +153,15 @@ function formatFallbackFromToolResult(
   userText: string,
 ) {
   if (!result || result.error) {
-    return result?.error || 'Xin loi, toi chua lay duoc du lieu theo yeu cau nay.';
+    return result?.error || 'Chua lay duoc du lieu theo yeu cau nay.';
   }
 
   const items = Array.isArray(result.items) ? result.items : [];
   if (!items.length) {
     if (toolName === 'ragSearch') {
-      return `Toi chua tim thay huong dan phu hop cho yeu cau "${userText}".`;
+      return 'Chua tim thay huong dan phu hop cho yeu cau nay.';
     }
-    return `Toi chua tim thay du lieu phu hop voi yeu cau "${userText}".`;
+    return `Khong tim thay du lieu phu hop voi yeu cau "${userText}".`;
   }
 
   if (toolName === 'getStock') {
@@ -164,7 +172,7 @@ function formatFallbackFromToolResult(
           `- ${item.product_name} (${item.sku}) | ${item.warehouse_name} | ton ${item.quantity}`,
       )
       .join('\n');
-    return `Toi tim thay cac ton kho sau:\n${rows}`;
+    return `Ton kho:\n${rows}`;
   }
 
   if (toolName === 'ragSearch') {
@@ -173,10 +181,10 @@ function formatFallbackFromToolResult(
   }
 
   if (items.length === 1) {
-    return `Toi da tim thay 1 ket qua phu hop cho yeu cau "${userText}".`;
+    return `Tim thay 1 ket qua phu hop.`;
   }
 
-  return `Toi da tim thay ${items.length} ket qua phu hop cho yeu cau "${userText}".`;
+  return `Tim thay ${items.length} ket qua phu hop.`;
 }
 
 function pickModelForPlan(openai: OpenAiService, plan: ChatRoutePlan) {
@@ -269,7 +277,7 @@ export class ChatbotService {
     if (!toolSchemas.length && plan.intent !== 'RAG_GUIDE') {
       yield {
         type: 'text',
-        content: 'Tai khoan hien tai khong duoc phep xem noi dung nay. Neu can, ban vui long lien he quan tri vien hoac nguoi quan ly de duoc cap quyen phu hop.',
+        content: 'Tai khoan hien tai khong duoc phep xem noi dung nay. Vui long lien he quan tri vien de duoc cap quyen phu hop.',
       };
       yield { type: 'usage', promptTokens: 0, completionTokens: 0, totalTokens: 0 };
       yield { type: 'done' };

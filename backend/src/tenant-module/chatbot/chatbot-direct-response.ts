@@ -27,13 +27,13 @@ function renderFirstItems(
 ) {
   const lines = rows.map(renderRow);
   const summary = totalCount && totalCount > rows.length
-    ? `\n- Con ${totalCount - rows.length} ket qua khac. Ban co the them dieu kien loc neu muon xem chinh xac hon.`
+    ? `\n_(Con ${totalCount - rows.length} ket qua khac, thu them dieu kien loc de thu hep ket qua.)_`
     : '';
   return `${title}\n${lines.join('\n')}${summary}`.trim();
 }
 
 export function buildActionUnsupportedMessage() {
-  return 'Hien tai toi moi ho tro tra cuu va huong dan su dung. Neu ban muon tao, cap nhat, xoa hoac duyet chung tu, vui long thao tac truc tiep trong man hinh chuc nang tuong ung.';
+  return 'Chatbot hien chi ho tro tra cuu va huong dan su dung. Cac thao tac tao, cap nhat, xoa, duyet chung tu can thuc hien truc tiep trong man hinh chuc nang tuong ung.';
 }
 
 export function formatDirectToolResult(
@@ -47,7 +47,7 @@ export function formatDirectToolResult(
 
   const items = Array.isArray(result.items) ? result.items : [];
   if (!items.length) {
-    return `Toi chua tim thay du lieu phu hop voi yeu cau "${userText}". Ban co the thu nhap them ma chung tu, khoang thoi gian hoac ten doi tuong can tra cuu.`;
+    return `Khong tim thay du lieu phu hop voi yeu cau "${userText}".`;
   }
 
   if (toolName === 'getInvoices') {
